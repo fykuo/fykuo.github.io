@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>果煜法師佛法開示彙整 | Guo Yu Dharma Archive</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Noto+Sans+TC:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #5D564C; /* 深灰褐 */
+            --accent-color: #8C7B65;  /* 僧袍色/大地色 */
+            --bg-color: #F7F5F0;      /* 米紙色 */
+            --card-bg: #FFFFFF;
+            --text-main: #333333;
+            --text-light: #666666;
+        }
+
+        body {
+            font-family: 'Noto Serif TC', serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        /* Header Section */
+        header {
+            background-color: var(--primary-color);
+            color: #fff;
+            padding: 3rem 1rem;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        header p {
+            font-family: 'Noto Sans TC', sans-serif;
+            margin-top: 10px;
+            font-weight: 300;
+            opacity: 0.9;
+        }
+
+        /* Search Section */
+        .search-container {
+            max-width: 800px;
+            margin: -25px auto 30px;
+            padding: 0 20px;
+            position: relative;
+        }
+
+        input#searchInput {
+            width: 100%;
+            padding: 15px 25px;
+            border-radius: 50px;
+            border: 1px solid #ddd;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            outline: none;
+            box-sizing: border-box;
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+
+        input#searchInput:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 4px 15px rgba(140, 123, 101, 0.3);
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .intro {
+            text-align: center;
+            margin-bottom: 40px;
+            color: var(--text-light);
+            font-size: 1.1rem;
+        }
+
+        /* Archive Grid */
+        .archive-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-left: 4px solid var(--accent-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+            font-size: 1.25rem;
+        }
+
+        .card .year {
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 0.85rem;
+            color: #999;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .card p {
+            font-size: 0.95rem;
+            color: var(--text-light);
+            flex-grow: 1;
+            margin-bottom: 20px;
+        }
+
+        .card-actions {
+            margin-top: auto;
+        }
+
+        .btn {
+            display: inline-block;
+            text-decoration: none;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: background 0.3s, color 0.3s;
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-color);
+            color: #fff;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            margin-top: 50px;
+            border-top: 1px solid #e0e0e0;
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.8rem; }
+            .archive-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>果煜法師佛法開示彙整</h1>
+    <p>Guo Yu Dharma Archive | 1989 - 2025</p>
+</header>
+
+<div class="search-container">
+    <input type="text" id="searchInput" onkeyup="filterContent()" placeholder="搜尋開示主題、經典名稱或年份（例如：金剛經、2025...）">
+</div>
+
+<div class="container">
+    <div class="intro">
+        <p>本資料庫收錄果煜法師三十餘年來之弘法音檔、禪修開示與文字著作。<br>願以此法施功德，普及於一切。</p>
+    </div>
+
+    <div class="archive-grid" id="cardGrid">
+
+        <div class="card" data-tags="2025 孟子 著作">
+            <span class="year">2025</span>
+            <h3>孟子選註與講評</h3>
+            <p>法師最新著作，深入剖析孟子思想與佛法之會通。</p>
+            <div class="card-actions">
+                <a href="./2025孟子選註與講評/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+
+        <div class="card" data-tags="2024 中國禪 禪修">
+            <span class="year">2024</span>
+            <h3>中國禪何去何從</h3>
+            <p>探討漢傳禪法的現代處境與未來展望。</p>
+            <div class="card-actions">
+                <a href="./2024中國禪何去何從/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+
+        <div class="card" data-tags="2023 楞伽經 經典">
+            <span class="year">2023</span>
+            <h3>楞伽經開示</h3>
+            <p>法師特別加版開示，深入唯識與如來藏思想。</p>
+            <div class="card-actions">
+                <a href="./2023楞伽經/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+
+        <div class="card" data-tags="2022 原始佛教 阿含">
+            <span class="year">2022</span>
+            <h3>原始佛教</h3>
+            <p>回歸佛陀本懷，探討原始佛教之核心教義。</p>
+            <div class="card-actions">
+                <a href="./2022原始佛教/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+
+        <div class="card" data-tags="2015 心經 智慧">
+            <span class="year">2015</span>
+            <h3>心經與智慧的修煉</h3>
+            <p>般若波羅蜜多心經講記及相關修煉指引。</p>
+            <div class="card-actions">
+                <a href="./2015心經/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+
+        <div class="card" data-tags="2012 中觀 成佛之道">
+            <span class="year">2012</span>
+            <h3>中觀續雕 & 成佛之道</h3>
+            <p>包含觀涅槃品及印順導師成佛之道講記。</p>
+            <div class="card-actions">
+                <a href="./2012中觀續雕/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+
+        <div class="card" data-tags="2004 雜阿含 經典">
+            <span class="year">2004</span>
+            <h3>佛法原典研習-雜阿含</h3>
+            <p>早期對於雜阿含經的深入研讀與開示。</p>
+            <div class="card-actions">
+                <a href="./2004佛法原典研習-雜阿含/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+
+        <div class="card" data-tags="1989 1990 1991 1992 1993 1994 禪坐">
+            <span class="year">1989-1994</span>
+            <h3>禪坐會開示音檔小集</h3>
+            <p>法師早期於禪坐會的指導開示，珍貴歷史音檔。</p>
+            <div class="card-actions">
+                <a href="./1989-1994禪坐會開示音檔小集/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+        
+        <div class="card" data-tags="文稿 文章">
+            <span class="year">文稿彙整</span>
+            <h3>各類開示文稿</h3>
+            <p>包含 SDCL 等講義與開示文字稿。</p>
+            <div class="card-actions">
+                <a href="./文稿/" class="btn">瀏覽內容</a>
+            </div>
+        </div>
+
+    </div>
+    
+    <div id="noResults" style="display:none; text-align:center; color:#999; margin-top:30px;">
+        查無相關資料，請嘗試其他關鍵字。
+    </div>
+</div>
+
+<footer>
+    <p>&copy; 2025 Guo Yu Dharma Archive. Maintained by fy.kuo.</p>
+    <p>Hosted on <a href="https://github.com/fykuo/guoyu-dharma-archive" target="_blank">GitHub</a></p>
+</footer>
+
+<script>
+    function filterContent() {
+        // 取得搜尋輸入值
+        var input = document.getElementById('searchInput');
+        var filter = input.value.toUpperCase();
+        
+        // 取得所有卡片
+        var grid = document.getElementById('cardGrid');
+        var cards = grid.getElementsByClassName('card');
+        var hasVisibleCard = false;
+
+        // 迴圈比對
+        for (var i = 0; i < cards.length; i++) {
+            var h3 = cards[i].getElementsByTagName("h3")[0];
+            var p = cards[i].getElementsByTagName("p")[0];
+            var tags = cards[i].getAttribute("data-tags");
+            
+            // 比對標題、內文以及隱藏的標籤 (data-tags)
+            var txtValue = h3.textContent || h3.innerText;
+            var paraValue = p.textContent || p.innerText;
+            var tagValue = tags || "";
+
+            if (txtValue.toUpperCase().indexOf(filter) > -1 || 
+                paraValue.toUpperCase().indexOf(filter) > -1 || 
+                tagValue.toUpperCase().indexOf(filter) > -1) {
+                cards[i].style.display = "";
+                hasVisibleCard = true;
+            } else {
+                cards[i].style.display = "none";
+            }
+        }
+
+        // 顯示/隱藏「查無資料」訊息
+        var noResultsMsg = document.getElementById('noResults');
+        if (!hasVisibleCard) {
+            noResultsMsg.style.display = "block";
+        } else {
+            noResultsMsg.style.display = "none";
+        }
+    }
+</script>
+
+</body>
+</html>
