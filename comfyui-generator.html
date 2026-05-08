@@ -601,7 +601,14 @@ select option { background: var(--surface3); }
         </div>
       </div>
       <div class="field">
-        <label>Checkpoint / Model</label>
+        <label>Loader Type</label>
+        <select id="loaderType" onchange="onLoaderTypeChange()">
+          <option value="checkpoint">Checkpoint (merged .safetensors)</option>
+          <option value="gguf">GGUF UNet (split files)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label id="modelLabel">Checkpoint / Model</label>
         <div style="display:flex;gap:6px">
           <select id="modelName" style="flex:1">
             <option value="flux2klein.safetensors">flux2klein.safetensors</option>
@@ -609,6 +616,18 @@ select option { background: var(--surface3); }
           <button class="btn btn-ghost btn-sm" id="loadModelsBtn" onclick="loadModels()" title="Fetch models from server">↻</button>
         </div>
         <div id="modelLoadStatus" style="font-size:0.7rem;color:var(--text-muted);margin-top:3px;min-height:14px"></div>
+      </div>
+      <div id="vaeField" style="display:none">
+        <div class="field">
+          <label>VAE Model</label>
+          <div style="display:flex;gap:6px">
+            <select id="vaeName" style="flex:1">
+              <option value="ae.safetensors">ae.safetensors</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="loadVAEs()" title="Fetch VAE models">↻</button>
+          </div>
+          <div id="vaeLoadStatus" style="font-size:0.7rem;color:var(--text-muted);margin-top:3px;min-height:14px"></div>
+        </div>
       </div>
       <div class="grid2">
         <div class="field">
@@ -671,24 +690,28 @@ select option { background: var(--surface3); }
         <div class="field">
           <label>CLIP Model</label>
           <div style="display:flex;gap:6px">
-            <input type="text" id="clipName" list="clipDatalist" placeholder="clip_model.safetensors" style="flex:1">
+            <select id="clipName" style="flex:1">
+              <option value="">— click ↻ to load —</option>
+            </select>
             <button class="btn btn-ghost btn-sm" onclick="loadClips()" title="Fetch CLIP models">↻</button>
           </div>
-          <datalist id="clipDatalist"></datalist>
         </div>
       </div>
       <div id="dualClipFields" style="display:none">
         <div class="field">
-          <label>CLIP 1 <span style="color:var(--text-dim)">(e.g. t5xxl_fp8)</span></label>
+          <label>CLIP 1 <span style="color:var(--text-dim)">(T5-XXL for Flux)</span></label>
           <div style="display:flex;gap:6px">
-            <input type="text" id="dualClip1" list="clipDatalist" placeholder="t5xxl_fp8_e4m3fn.safetensors" style="flex:1">
+            <select id="dualClip1" style="flex:1">
+              <option value="">— click ↻ to load —</option>
+            </select>
             <button class="btn btn-ghost btn-sm" onclick="loadClips()" title="Fetch CLIP models">↻</button>
           </div>
-          <datalist id="clipDatalist2"></datalist>
         </div>
         <div class="field">
-          <label>CLIP 2 <span style="color:var(--text-dim)">(e.g. clip_l)</span></label>
-          <input type="text" id="dualClip2" list="clipDatalist" placeholder="clip_l.safetensors">
+          <label>CLIP 2 <span style="color:var(--text-dim)">(CLIP-L for Flux)</span></label>
+          <select id="dualClip2" style="width:100%">
+            <option value="">— click ↻ to load —</option>
+          </select>
         </div>
         <div class="field">
           <label>Type</label>
@@ -1072,17 +1095,33 @@ function setProxy(val) {
 /* ═══════════════════════════════════════════════════════════
    MODEL / LORA / CLIP LOADERS
 ═══════════════════════════════════════════════════════════ */
+function onLoaderTypeChange() {
+  const t = document.getElementById('loaderType').value;
+  document.getElementById('vaeField').style.display = t === 'gguf' ? 'block' : 'none';
+  document.getElementById('modelLabel').textContent =
+    t === 'gguf' ? 'GGUF UNet Model' : 'Checkpoint / Model';
+  // Clear model list so stale entries from the other type don't appear
+  document.getElementById('modelName').innerHTML =
+    `<option value="">— click ↻ to load —</option>`;
+  document.getElementById('modelLoadStatus').textContent = '';
+}
+
 async function loadModels() {
   const url  = serverUrl();
   const btn  = document.getElementById('loadModelsBtn');
   const stat = document.getElementById('modelLoadStatus');
+  const type = document.getElementById('loaderType').value;
   btn.textContent = '…'; btn.disabled = true;
   stat.style.color = 'var(--text-muted)'; stat.textContent = 'Fetching…';
   try {
-    const r = await fetch(proxied(`${url}/object_info/CheckpointLoaderSimple`));
+    // Checkpoint mode → CheckpointLoaderSimple
+    // GGUF mode → UnetLoaderGGUF (ComfyUI-GGUF extension)
+    const node = type === 'gguf' ? 'UnetLoaderGGUF' : 'CheckpointLoaderSimple';
+    const key  = type === 'gguf' ? 'unet_name'      : 'ckpt_name';
+    const r = await fetch(proxied(`${url}/object_info/${node}`));
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
-    const raw = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] || [];
+    const raw = data?.[node]?.input?.required?.[key]?.[0] || [];
     const models = raw.slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
     const sel = document.getElementById('modelName');
     const prev = sel.value;
@@ -1097,6 +1136,30 @@ async function loadModels() {
     stat.textContent = `Failed: ${e.message}`;
   } finally {
     btn.textContent = '↻'; btn.disabled = false;
+  }
+}
+
+async function loadVAEs() {
+  const url  = serverUrl();
+  const stat = document.getElementById('vaeLoadStatus');
+  stat.style.color = 'var(--text-muted)'; stat.textContent = 'Fetching…';
+  try {
+    const r = await fetch(proxied(`${url}/object_info/VAELoader`));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const raw = data?.VAELoader?.input?.required?.vae_name?.[0] || [];
+    const vaes = raw.slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    const sel  = document.getElementById('vaeName');
+    const prev = sel.value;
+    sel.innerHTML = vaes.map(v =>
+      `<option value="${escHtml(v)}"${v === prev ? ' selected' : ''}>${escHtml(v)}</option>`
+    ).join('');
+    if (!sel.value && vaes.length) sel.value = vaes[0];
+    stat.style.color = 'var(--success)';
+    stat.textContent = `${vaes.length} VAE${vaes.length !== 1 ? 's' : ''} loaded`;
+  } catch (e) {
+    stat.style.color = 'var(--error)';
+    stat.textContent = `Failed: ${e.message}`;
   }
 }
 
@@ -1118,7 +1181,7 @@ async function loadLoras() {
       const sel  = document.getElementById(`loraName${i}`);
       const prev = sel.value;
       sel.innerHTML = opts;
-      if (prev) sel.value = prev; // restore selection if it still exists
+      if (prev) sel.value = prev;
     }
     stat.style.color = 'var(--success)';
     stat.textContent = `${loras.length} LoRA${loras.length !== 1 ? 's' : ''} loaded`;
@@ -1133,16 +1196,31 @@ async function loadClips() {
   const stat = document.getElementById('clipLoadStatus');
   stat.style.color = 'var(--text-muted)'; stat.textContent = 'Fetching…';
   try {
-    // DualCLIPLoader has both clip lists; fall back to CLIPLoader
-    const r = await fetch(proxied(`${url}/object_info/DualCLIPLoader`));
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const data = await r.json();
-    const clips = (data?.DualCLIPLoader?.input?.required?.clip_name1?.[0] || [])
+    // Fetch from DualCLIPLoader (covers safetensors) and CLIPLoaderGGUF (gguf clips), merge + dedup
+    const [rDual, rGguf] = await Promise.allSettled([
+      fetch(proxied(`${url}/object_info/DualCLIPLoader`)),
+      fetch(proxied(`${url}/object_info/CLIPLoaderGGUF`)),
+    ]);
+    const dual = rDual.status === 'fulfilled' && rDual.value.ok
+      ? ((await rDual.value.json())?.DualCLIPLoader?.input?.required?.clip_name1?.[0] || []) : [];
+    const gguf = rGguf.status === 'fulfilled' && rGguf.value.ok
+      ? ((await rGguf.value.json())?.CLIPLoaderGGUF?.input?.required?.clip_name?.[0] || []) : [];
+    const clips = [...new Set([...dual, ...gguf])]
       .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-    const opts = clips.map(c => `<option value="${escHtml(c)}">`).join('');
-    document.getElementById('clipDatalist').innerHTML  = opts;
+    if (!clips.length) throw new Error('No CLIP models found (check DualCLIPLoader / CLIPLoaderGGUF nodes)');
+
+    const blank = `<option value="">— select —</option>`;
+    const opts  = blank + clips.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+
+    // Populate all three CLIP selects, preserving current selection
+    for (const id of ['clipName', 'dualClip1', 'dualClip2']) {
+      const sel  = document.getElementById(id);
+      const prev = sel.value;
+      sel.innerHTML = opts;
+      if (prev) sel.value = prev;
+    }
     stat.style.color = 'var(--success)';
-    stat.textContent = `${clips.length} CLIP model${clips.length !== 1 ? 's' : ''} loaded`;
+    stat.textContent = `${clips.length} CLIP model${clips.length !== 1 ? 's' : ''} loaded (${dual.length} safetensors + ${gguf.length} GGUF)`;
   } catch (e) {
     stat.style.color = 'var(--error)';
     stat.textContent = `Failed: ${e.message}`;
@@ -1250,21 +1328,33 @@ function builtinWorkflow(prompt, seed) {
   const clipMode = document.getElementById('clipMode').value;
 
   const nodes = {};
+  const loaderType = document.getElementById('loaderType').value;
 
-  // ── Node 1: base checkpoint ──────────────────────────────
-  nodes["1"] = { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": model } };
+  // ── Node 1: model loader ──────────────────────────────────
+  let vaeRef;
+  if (loaderType === 'gguf') {
+    nodes["1"] = { "class_type": "UnetLoaderGGUF", "inputs": { "unet_name": model } };
+    const vae = document.getElementById('vaeName').value || 'ae.safetensors';
+    nodes["99"] = { "class_type": "VAELoader", "inputs": { "vae_name": vae } };
+    vaeRef = ["99", 0];
+    if (clipMode === 'bundled')
+      throw new Error('GGUF UNet has no bundled CLIP. Open Text Encoder and select Dual CLIP (T5-XXL + CLIP-L, type: flux).');
+  } else {
+    nodes["1"] = { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": model } };
+    vaeRef = ["1", 2];
+  }
 
   // ── Text encoder ────────────────────────────────────────
   let clipRef;
   if (clipMode === 'single') {
-    const cn = document.getElementById('clipName').value.trim();
-    if (!cn) throw new Error('Text Encoder: Single CLIP mode requires a CLIP model name.');
+    const cn = document.getElementById('clipName').value;
+    if (!cn) throw new Error('Text Encoder: Single CLIP — please select a CLIP model.');
     nodes["20"] = { "class_type": "CLIPLoader", "inputs": { "clip_name": cn, "type": "stable_diffusion" } };
     clipRef = ["20", 0];
   } else if (clipMode === 'dual') {
-    const c1 = document.getElementById('dualClip1').value.trim();
-    const c2 = document.getElementById('dualClip2').value.trim();
-    if (!c1 || !c2) throw new Error('Text Encoder: Dual CLIP mode requires both CLIP model names.');
+    const c1 = document.getElementById('dualClip1').value;
+    const c2 = document.getElementById('dualClip2').value;
+    if (!c1 || !c2) throw new Error('Text Encoder: Dual CLIP — please select both CLIP models (CLIP 1 = T5-XXL, CLIP 2 = CLIP-L).');
     const ctype = document.getElementById('dualClipType').value;
     nodes["20"] = { "class_type": "DualCLIPLoader", "inputs": { "clip_name1": c1, "clip_name2": c2, "type": ctype } };
     clipRef = ["20", 0];
@@ -1272,7 +1362,7 @@ function builtinWorkflow(prompt, seed) {
     clipRef = ["1", 1]; // bundled CLIP from checkpoint
   }
 
-  // ── LoRA chain (nodes 30, 31, 32) ────────────────────────
+  // ── LoRA chain (nodes 30–32) ──────────────────────────────
   let modelRef = ["1", 0];
   let loraNodeId = 30;
   for (let i = 0; i < 3; i++) {
@@ -1290,10 +1380,17 @@ function builtinWorkflow(prompt, seed) {
     clipRef  = [id, 1];
   }
 
-  // ── Text encoders + sampler ───────────────────────────────
-  nodes["2"] = { "class_type": "CLIPTextEncode",  "inputs": { "text": prompt, "clip": clipRef } };
-  nodes["3"] = { "class_type": "CLIPTextEncode",  "inputs": { "text": "",     "clip": clipRef } };
-  nodes["4"] = { "class_type": "EmptyLatentImage","inputs": { "width": width, "height": height, "batch_size": 1 } };
+  // ── Latent image — use EmptySD3LatentImage for Flux/GGUF ──
+  const isFlux = loaderType === 'gguf' ||
+    (clipMode === 'dual' && document.getElementById('dualClipType').value === 'flux');
+  nodes["4"] = {
+    "class_type": isFlux ? "EmptySD3LatentImage" : "EmptyLatentImage",
+    "inputs": { "width": width, "height": height, "batch_size": 1 }
+  };
+
+  // ── KSampler + VAEDecode + SaveImage ──────────────────────
+  nodes["2"] = { "class_type": "CLIPTextEncode", "inputs": { "text": prompt, "clip": clipRef } };
+  nodes["3"] = { "class_type": "CLIPTextEncode", "inputs": { "text": "",     "clip": clipRef } };
   nodes["5"] = {
     "class_type": "KSampler",
     "inputs": {
@@ -1302,7 +1399,7 @@ function builtinWorkflow(prompt, seed) {
       "model": modelRef, "positive": ["2",0], "negative": ["3",0], "latent_image": ["4",0]
     }
   };
-  nodes["6"] = { "class_type": "VAEDecode", "inputs": { "samples": ["5",0], "vae": ["1",2] } };
+  nodes["6"] = { "class_type": "VAEDecode", "inputs": { "samples": ["5",0], "vae": vaeRef } };
   nodes["7"] = { "class_type": "SaveImage", "inputs": { "filename_prefix": "flux2klein", "images": ["6",0] } };
   return nodes;
 }
