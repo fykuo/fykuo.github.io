@@ -552,9 +552,13 @@ select option { background: var(--surface3); }
           <span id="statusText">Not tested</span>
         </div>
       </div>
-      <div class="notice">
-        When accessing from a remote URL, launch ComfyUI with
-        <code>--enable-cors-header</code> to allow browser requests.
+      <div class="field" style="margin-top:10px">
+        <label>CORS Proxy URL <span style="color:var(--text-dim);font-weight:400">(optional)</span></label>
+        <input type="text" id="corsProxy" placeholder="https://corsproxy.io/?">
+        <div style="margin-top:5px;font-size:0.7rem;color:var(--text-muted);line-height:1.5">
+          Use if the server can't be restarted with <code style="background:var(--surface3);padding:1px 4px;border-radius:3px">--enable-cors-header</code>.<br>
+          Recommended: <code style="background:var(--surface3);padding:1px 4px;border-radius:3px;cursor:pointer" onclick="setProxy('https://corsproxy.io/?')">https://corsproxy.io/?</code>
+        </div>
       </div>
     </div>
   </div>
@@ -872,10 +876,11 @@ async function testConnection() {
   const url = serverUrl();
   setDot('checking', 'Connecting…');
   try {
-    const r = await fetch(`${url}/system_stats`, { signal: AbortSignal.timeout(6000) });
+    const r = await fetch(proxied(`${url}/system_stats`), { signal: AbortSignal.timeout(8000) });
     r.ok ? setDot('online', 'Connected ✓') : setDot('offline', `HTTP ${r.status}`);
-  } catch {
-    setDot('offline', 'Unreachable — check URL & CORS');
+  } catch (e) {
+    const hint = document.getElementById('corsProxy').value.trim() ? 'check proxy URL' : 'set CORS Proxy or enable --enable-cors-header';
+    setDot('offline', `Unreachable — ${hint}`);
   }
 }
 function setDot(state, msg) {
@@ -884,6 +889,13 @@ function setDot(state, msg) {
 }
 function serverUrl() {
   return document.getElementById('serverUrl').value.trim().replace(/\/$/, '');
+}
+function proxied(url) {
+  const proxy = document.getElementById('corsProxy').value.trim();
+  return proxy ? proxy + url : url;
+}
+function setProxy(val) {
+  document.getElementById('corsProxy').value = val;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1071,7 +1083,7 @@ async function generateOne(url, prompt, seed, slotIndex) {
   const clientId = uuid();
   const workflow = buildWorkflow(prompt, seed);
 
-  const r = await fetch(`${url}/prompt`, {
+  const r = await fetch(proxied(`${url}/prompt`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: workflow, client_id: clientId })
@@ -1082,7 +1094,10 @@ async function generateOne(url, prompt, seed, slotIndex) {
   setProgress(null, null, `Image ${slotIndex + 1} — generating (id: ${prompt_id.slice(0,8)}…)`);
 
   const filename = await pollHistory(url, prompt_id);
-  return `${url}/view?filename=${encodeURIComponent(filename)}&subfolder=&type=output`;
+  // Image src uses proxied URL only if a proxy is set (img tags are no-cors by default,
+  // but some proxies are needed when the server returns non-image content-type)
+  const viewUrl = `${url}/view?filename=${encodeURIComponent(filename)}&subfolder=&type=output`;
+  return proxied(viewUrl);
 }
 
 async function pollHistory(url, promptId, timeout = 300_000) {
@@ -1091,7 +1106,7 @@ async function pollHistory(url, promptId, timeout = 300_000) {
     if (stopFlag) throw new Error('Stopped by user');
     await sleep(1200);
     try {
-      const r = await fetch(`${url}/history/${promptId}`);
+      const r = await fetch(proxied(`${url}/history/${promptId}`));
       if (!r.ok) continue;
       const data = await r.json();
       if (data[promptId]) {
