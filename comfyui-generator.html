@@ -603,10 +603,11 @@ select option { background: var(--surface3); }
       <div class="field">
         <label>Checkpoint / Model</label>
         <div style="display:flex;gap:6px">
-          <input type="text" id="modelName" list="modelDatalist" value="flux2klein.safetensors" placeholder="model.safetensors" style="flex:1">
+          <select id="modelName" style="flex:1">
+            <option value="flux2klein.safetensors">flux2klein.safetensors</option>
+          </select>
           <button class="btn btn-ghost btn-sm" id="loadModelsBtn" onclick="loadModels()" title="Fetch models from server">↻</button>
         </div>
-        <datalist id="modelDatalist"></datalist>
         <div id="modelLoadStatus" style="font-size:0.7rem;color:var(--text-muted);margin-top:3px;min-height:14px"></div>
       </div>
       <div class="grid2">
@@ -725,7 +726,6 @@ select option { background: var(--surface3); }
       <button class="btn btn-ghost btn-sm" onclick="loadLoras()" style="padding:2px 8px;font-size:0.68rem" title="Fetch LoRA list from server">↻ Load</button>
     </div>
     <div class="panel-body">
-      <datalist id="loraDatalist"></datalist>
       <div id="loraLoadStatus" style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;min-height:14px"></div>
 
       <!-- LoRA 1 -->
@@ -736,7 +736,9 @@ select option { background: var(--surface3); }
         </label>
         <div class="lora-fields" id="loraFields0">
           <div class="field" style="margin-top:8px">
-            <input type="text" id="loraName0" list="loraDatalist" placeholder="lora.safetensors">
+            <select id="loraName0" style="width:100%">
+              <option value="">— click ↻ Load to populate —</option>
+            </select>
           </div>
           <div class="grid2">
             <div class="field">
@@ -759,7 +761,9 @@ select option { background: var(--surface3); }
         </label>
         <div class="lora-fields" id="loraFields1">
           <div class="field" style="margin-top:8px">
-            <input type="text" id="loraName1" list="loraDatalist" placeholder="lora.safetensors">
+            <select id="loraName1" style="width:100%">
+              <option value="">— click ↻ Load to populate —</option>
+            </select>
           </div>
           <div class="grid2">
             <div class="field">
@@ -782,7 +786,9 @@ select option { background: var(--surface3); }
         </label>
         <div class="lora-fields" id="loraFields2">
           <div class="field" style="margin-top:8px">
-            <input type="text" id="loraName2" list="loraDatalist" placeholder="lora.safetensors">
+            <select id="loraName2" style="width:100%">
+              <option value="">— click ↻ Load to populate —</option>
+            </select>
           </div>
           <div class="grid2">
             <div class="field">
@@ -1067,7 +1073,7 @@ function setProxy(val) {
    MODEL / LORA / CLIP LOADERS
 ═══════════════════════════════════════════════════════════ */
 async function loadModels() {
-  const url = serverUrl();
+  const url  = serverUrl();
   const btn  = document.getElementById('loadModelsBtn');
   const stat = document.getElementById('modelLoadStatus');
   btn.textContent = '…'; btn.disabled = true;
@@ -1076,15 +1082,16 @@ async function loadModels() {
     const r = await fetch(proxied(`${url}/object_info/CheckpointLoaderSimple`));
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
-    const models = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] || [];
-    // filter to safetensors + gguf only, sort
-    const filtered = models
-      .filter(m => /\.(safetensors|gguf)$/i.test(m))
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-    document.getElementById('modelDatalist').innerHTML =
-      filtered.map(m => `<option value="${escHtml(m)}">`).join('');
+    const raw = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] || [];
+    const models = raw.slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    const sel = document.getElementById('modelName');
+    const prev = sel.value;
+    sel.innerHTML = models.map(m =>
+      `<option value="${escHtml(m)}"${m === prev ? ' selected' : ''}>${escHtml(m)}</option>`
+    ).join('');
+    if (!sel.value && models.length) sel.value = models[0];
     stat.style.color = 'var(--success)';
-    stat.textContent = `${filtered.length} model${filtered.length !== 1 ? 's' : ''} loaded`;
+    stat.textContent = `${models.length} model${models.length !== 1 ? 's' : ''} loaded`;
   } catch (e) {
     stat.style.color = 'var(--error)';
     stat.textContent = `Failed: ${e.message}`;
@@ -1101,10 +1108,18 @@ async function loadLoras() {
     const r = await fetch(proxied(`${url}/object_info/LoraLoader`));
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
-    const loras = (data?.LoraLoader?.input?.required?.lora_name?.[0] || [])
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-    document.getElementById('loraDatalist').innerHTML =
-      loras.map(l => `<option value="${escHtml(l)}">`).join('');
+    const raw = data?.LoraLoader?.input?.required?.lora_name?.[0] || [];
+    const loras = raw.slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    const blank = `<option value="">— select LoRA —</option>`;
+    const opts  = blank + loras.map(l =>
+      `<option value="${escHtml(l)}">${escHtml(l)}</option>`
+    ).join('');
+    for (let i = 0; i < 3; i++) {
+      const sel  = document.getElementById(`loraName${i}`);
+      const prev = sel.value;
+      sel.innerHTML = opts;
+      if (prev) sel.value = prev; // restore selection if it still exists
+    }
     stat.style.color = 'var(--success)';
     stat.textContent = `${loras.length} LoRA${loras.length !== 1 ? 's' : ''} loaded`;
   } catch (e) {
@@ -1225,7 +1240,7 @@ function injectIntoWorkflow(wf, prompt, seed) {
 }
 
 function builtinWorkflow(prompt, seed) {
-  const model   = document.getElementById('modelName').value.trim() || 'flux2klein.safetensors';
+  const model   = document.getElementById('modelName').value || 'flux2klein.safetensors';
   const steps   = parseInt(document.getElementById('steps').value) || 20;
   const cfg     = parseFloat(document.getElementById('cfg').value) || 1.0;
   const width   = parseInt(document.getElementById('imgWidth').value) || 768;
@@ -1262,7 +1277,7 @@ function builtinWorkflow(prompt, seed) {
   let loraNodeId = 30;
   for (let i = 0; i < 3; i++) {
     if (!document.getElementById(`loraEn${i}`).checked) continue;
-    const name = document.getElementById(`loraName${i}`).value.trim();
+    const name = document.getElementById(`loraName${i}`).value;
     if (!name) continue;
     const mw = parseFloat(document.getElementById(`loraMw${i}`).value) || 1.0;
     const cw = parseFloat(document.getElementById(`loraCw${i}`).value) || 1.0;
