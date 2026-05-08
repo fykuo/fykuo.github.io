@@ -472,6 +472,29 @@ select option { background: var(--surface3); }
   font-size: 0.75rem;
 }
 
+/* LoRA rows */
+.lora-row {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.lora-row:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: none; }
+.lora-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+.lora-toggle input[type=checkbox] {
+  width: 14px; height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.lora-toggle span { font-size: 0.82rem; color: var(--text); user-select: none; }
+.lora-fields { margin-top: 8px; display: none; }
+
 /* Modal */
 .modal-backdrop {
   position: fixed;
@@ -579,7 +602,12 @@ select option { background: var(--surface3); }
       </div>
       <div class="field">
         <label>Checkpoint / Model</label>
-        <input type="text" id="modelName" value="flux2klein.safetensors" placeholder="model.safetensors">
+        <div style="display:flex;gap:6px">
+          <input type="text" id="modelName" list="modelDatalist" value="flux2klein.safetensors" placeholder="model.safetensors" style="flex:1">
+          <button class="btn btn-ghost btn-sm" id="loadModelsBtn" onclick="loadModels()" title="Fetch models from server">↻</button>
+        </div>
+        <datalist id="modelDatalist"></datalist>
+        <div id="modelLoadStatus" style="font-size:0.7rem;color:var(--text-muted);margin-top:3px;min-height:14px"></div>
       </div>
       <div class="grid2">
         <div class="field">
@@ -624,6 +652,55 @@ select option { background: var(--surface3); }
       </div>
     </div>
 
+    <!-- Text Encoder Override -->
+    <div class="panel-header collapsible-toggle" onclick="toggleCollapsible(this)">
+      Text Encoder
+      <span class="chevron">▼</span>
+    </div>
+    <div class="collapsible-body">
+      <div class="field">
+        <label>Mode</label>
+        <select id="clipMode" onchange="onClipModeChange()">
+          <option value="bundled">Bundled with checkpoint (default)</option>
+          <option value="single">Single CLIP</option>
+          <option value="dual">Dual CLIP — Flux / SD3</option>
+        </select>
+      </div>
+      <div id="singleClipFields" style="display:none">
+        <div class="field">
+          <label>CLIP Model</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="clipName" list="clipDatalist" placeholder="clip_model.safetensors" style="flex:1">
+            <button class="btn btn-ghost btn-sm" onclick="loadClips()" title="Fetch CLIP models">↻</button>
+          </div>
+          <datalist id="clipDatalist"></datalist>
+        </div>
+      </div>
+      <div id="dualClipFields" style="display:none">
+        <div class="field">
+          <label>CLIP 1 <span style="color:var(--text-dim)">(e.g. t5xxl_fp8)</span></label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="dualClip1" list="clipDatalist" placeholder="t5xxl_fp8_e4m3fn.safetensors" style="flex:1">
+            <button class="btn btn-ghost btn-sm" onclick="loadClips()" title="Fetch CLIP models">↻</button>
+          </div>
+          <datalist id="clipDatalist2"></datalist>
+        </div>
+        <div class="field">
+          <label>CLIP 2 <span style="color:var(--text-dim)">(e.g. clip_l)</span></label>
+          <input type="text" id="dualClip2" list="clipDatalist" placeholder="clip_l.safetensors">
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="dualClipType">
+            <option value="flux">flux</option>
+            <option value="sd3">sd3</option>
+            <option value="stable_cascade">stable_cascade</option>
+          </select>
+        </div>
+      </div>
+      <div id="clipLoadStatus" style="font-size:0.7rem;color:var(--text-muted);min-height:14px"></div>
+    </div>
+
     <!-- Advanced: custom workflow JSON -->
     <div class="panel-header collapsible-toggle" onclick="toggleCollapsible(this)">
       Advanced — Custom Workflow
@@ -638,6 +715,87 @@ select option { background: var(--surface3); }
       <p style="font-size:0.72rem;color:var(--text-muted);line-height:1.5">
         Export from ComfyUI via <strong>Save (API format)</strong>. Mark the positive prompt node text as <code>{{POSITIVE_PROMPT}}</code> and any seed as <code>-1</code>.
       </p>
+    </div>
+  </div>
+
+  <!-- LoRA -->
+  <div class="panel">
+    <div class="panel-header">
+      LoRA
+      <button class="btn btn-ghost btn-sm" onclick="loadLoras()" style="padding:2px 8px;font-size:0.68rem" title="Fetch LoRA list from server">↻ Load</button>
+    </div>
+    <div class="panel-body">
+      <datalist id="loraDatalist"></datalist>
+      <div id="loraLoadStatus" style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;min-height:14px"></div>
+
+      <!-- LoRA 1 -->
+      <div class="lora-row">
+        <label class="lora-toggle">
+          <input type="checkbox" id="loraEn0">
+          <span>LoRA 1</span>
+        </label>
+        <div class="lora-fields" id="loraFields0">
+          <div class="field" style="margin-top:8px">
+            <input type="text" id="loraName0" list="loraDatalist" placeholder="lora.safetensors">
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label>Model wt</label>
+              <input type="number" id="loraMw0" value="1.0" min="-2" max="2" step="0.05">
+            </div>
+            <div class="field">
+              <label>CLIP wt</label>
+              <input type="number" id="loraCw0" value="1.0" min="-2" max="2" step="0.05">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LoRA 2 -->
+      <div class="lora-row">
+        <label class="lora-toggle">
+          <input type="checkbox" id="loraEn1">
+          <span>LoRA 2</span>
+        </label>
+        <div class="lora-fields" id="loraFields1">
+          <div class="field" style="margin-top:8px">
+            <input type="text" id="loraName1" list="loraDatalist" placeholder="lora.safetensors">
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label>Model wt</label>
+              <input type="number" id="loraMw1" value="1.0" min="-2" max="2" step="0.05">
+            </div>
+            <div class="field">
+              <label>CLIP wt</label>
+              <input type="number" id="loraCw1" value="1.0" min="-2" max="2" step="0.05">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LoRA 3 -->
+      <div class="lora-row">
+        <label class="lora-toggle">
+          <input type="checkbox" id="loraEn2">
+          <span>LoRA 3</span>
+        </label>
+        <div class="lora-fields" id="loraFields2">
+          <div class="field" style="margin-top:8px">
+            <input type="text" id="loraName2" list="loraDatalist" placeholder="lora.safetensors">
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label>Model wt</label>
+              <input type="number" id="loraMw2" value="1.0" min="-2" max="2" step="0.05">
+            </div>
+            <div class="field">
+              <label>CLIP wt</label>
+              <input type="number" id="loraCw2" value="1.0" min="-2" max="2" step="0.05">
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -869,6 +1027,13 @@ document.querySelectorAll('.count-pill').forEach(p => {
 document.querySelector('[onclick="openBankModal()"]').textContent =
   `View Bank (${PROMPT_BANK.length})`;
 
+// LoRA checkbox toggles
+for (let i = 0; i < 3; i++) {
+  document.getElementById(`loraEn${i}`).addEventListener('change', function () {
+    document.getElementById(`loraFields${i}`).style.display = this.checked ? 'block' : 'none';
+  });
+}
+
 /* ═══════════════════════════════════════════════════════════
    SERVER
 ═══════════════════════════════════════════════════════════ */
@@ -896,6 +1061,83 @@ function proxied(url) {
 }
 function setProxy(val) {
   document.getElementById('corsProxy').value = val;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODEL / LORA / CLIP LOADERS
+═══════════════════════════════════════════════════════════ */
+async function loadModels() {
+  const url = serverUrl();
+  const btn  = document.getElementById('loadModelsBtn');
+  const stat = document.getElementById('modelLoadStatus');
+  btn.textContent = '…'; btn.disabled = true;
+  stat.style.color = 'var(--text-muted)'; stat.textContent = 'Fetching…';
+  try {
+    const r = await fetch(proxied(`${url}/object_info/CheckpointLoaderSimple`));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const models = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] || [];
+    // filter to safetensors + gguf only, sort
+    const filtered = models
+      .filter(m => /\.(safetensors|gguf)$/i.test(m))
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    document.getElementById('modelDatalist').innerHTML =
+      filtered.map(m => `<option value="${escHtml(m)}">`).join('');
+    stat.style.color = 'var(--success)';
+    stat.textContent = `${filtered.length} model${filtered.length !== 1 ? 's' : ''} loaded`;
+  } catch (e) {
+    stat.style.color = 'var(--error)';
+    stat.textContent = `Failed: ${e.message}`;
+  } finally {
+    btn.textContent = '↻'; btn.disabled = false;
+  }
+}
+
+async function loadLoras() {
+  const url  = serverUrl();
+  const stat = document.getElementById('loraLoadStatus');
+  stat.style.color = 'var(--text-muted)'; stat.textContent = 'Fetching…';
+  try {
+    const r = await fetch(proxied(`${url}/object_info/LoraLoader`));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const loras = (data?.LoraLoader?.input?.required?.lora_name?.[0] || [])
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    document.getElementById('loraDatalist').innerHTML =
+      loras.map(l => `<option value="${escHtml(l)}">`).join('');
+    stat.style.color = 'var(--success)';
+    stat.textContent = `${loras.length} LoRA${loras.length !== 1 ? 's' : ''} loaded`;
+  } catch (e) {
+    stat.style.color = 'var(--error)';
+    stat.textContent = `Failed: ${e.message}`;
+  }
+}
+
+async function loadClips() {
+  const url  = serverUrl();
+  const stat = document.getElementById('clipLoadStatus');
+  stat.style.color = 'var(--text-muted)'; stat.textContent = 'Fetching…';
+  try {
+    // DualCLIPLoader has both clip lists; fall back to CLIPLoader
+    const r = await fetch(proxied(`${url}/object_info/DualCLIPLoader`));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const clips = (data?.DualCLIPLoader?.input?.required?.clip_name1?.[0] || [])
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    const opts = clips.map(c => `<option value="${escHtml(c)}">`).join('');
+    document.getElementById('clipDatalist').innerHTML  = opts;
+    stat.style.color = 'var(--success)';
+    stat.textContent = `${clips.length} CLIP model${clips.length !== 1 ? 's' : ''} loaded`;
+  } catch (e) {
+    stat.style.color = 'var(--error)';
+    stat.textContent = `Failed: ${e.message}`;
+  }
+}
+
+function onClipModeChange() {
+  const m = document.getElementById('clipMode').value;
+  document.getElementById('singleClipFields').style.display = m === 'single' ? 'block' : 'none';
+  document.getElementById('dualClipFields').style.display   = m === 'dual'   ? 'block' : 'none';
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -983,30 +1225,71 @@ function injectIntoWorkflow(wf, prompt, seed) {
 }
 
 function builtinWorkflow(prompt, seed) {
-  const model    = document.getElementById('modelName').value.trim() || 'flux2klein.safetensors';
-  const steps    = parseInt(document.getElementById('steps').value) || 20;
-  const cfg      = parseFloat(document.getElementById('cfg').value) || 1.0;
-  const width    = parseInt(document.getElementById('imgWidth').value) || 768;
-  const height   = parseInt(document.getElementById('imgHeight').value) || 1024;
-  const sampler  = document.getElementById('sampler').value;
-  const sched    = document.getElementById('scheduler').value;
+  const model   = document.getElementById('modelName').value.trim() || 'flux2klein.safetensors';
+  const steps   = parseInt(document.getElementById('steps').value) || 20;
+  const cfg     = parseFloat(document.getElementById('cfg').value) || 1.0;
+  const width   = parseInt(document.getElementById('imgWidth').value) || 768;
+  const height  = parseInt(document.getElementById('imgHeight').value) || 1024;
+  const sampler = document.getElementById('sampler').value;
+  const sched   = document.getElementById('scheduler').value;
+  const clipMode = document.getElementById('clipMode').value;
 
-  return {
-    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": model } },
-    "2": { "class_type": "CLIPTextEncode",  "inputs": { "text": prompt, "clip": ["1", 1] } },
-    "3": { "class_type": "CLIPTextEncode",  "inputs": { "text": "",     "clip": ["1", 1] } },
-    "4": { "class_type": "EmptyLatentImage","inputs": { "width": width, "height": height, "batch_size": 1 } },
-    "5": {
-      "class_type": "KSampler",
-      "inputs": {
-        "seed": seed, "steps": steps, "cfg": cfg,
-        "sampler_name": sampler, "scheduler": sched, "denoise": 1.0,
-        "model": ["1",0], "positive": ["2",0], "negative": ["3",0], "latent_image": ["4",0]
-      }
-    },
-    "6": { "class_type": "VAEDecode", "inputs": { "samples": ["5",0], "vae": ["1",2] } },
-    "7": { "class_type": "SaveImage", "inputs": { "filename_prefix": "flux2klein", "images": ["6",0] } }
+  const nodes = {};
+
+  // ── Node 1: base checkpoint ──────────────────────────────
+  nodes["1"] = { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": model } };
+
+  // ── Text encoder ────────────────────────────────────────
+  let clipRef;
+  if (clipMode === 'single') {
+    const cn = document.getElementById('clipName').value.trim();
+    if (!cn) throw new Error('Text Encoder: Single CLIP mode requires a CLIP model name.');
+    nodes["20"] = { "class_type": "CLIPLoader", "inputs": { "clip_name": cn, "type": "stable_diffusion" } };
+    clipRef = ["20", 0];
+  } else if (clipMode === 'dual') {
+    const c1 = document.getElementById('dualClip1').value.trim();
+    const c2 = document.getElementById('dualClip2').value.trim();
+    if (!c1 || !c2) throw new Error('Text Encoder: Dual CLIP mode requires both CLIP model names.');
+    const ctype = document.getElementById('dualClipType').value;
+    nodes["20"] = { "class_type": "DualCLIPLoader", "inputs": { "clip_name1": c1, "clip_name2": c2, "type": ctype } };
+    clipRef = ["20", 0];
+  } else {
+    clipRef = ["1", 1]; // bundled CLIP from checkpoint
+  }
+
+  // ── LoRA chain (nodes 30, 31, 32) ────────────────────────
+  let modelRef = ["1", 0];
+  let loraNodeId = 30;
+  for (let i = 0; i < 3; i++) {
+    if (!document.getElementById(`loraEn${i}`).checked) continue;
+    const name = document.getElementById(`loraName${i}`).value.trim();
+    if (!name) continue;
+    const mw = parseFloat(document.getElementById(`loraMw${i}`).value) || 1.0;
+    const cw = parseFloat(document.getElementById(`loraCw${i}`).value) || 1.0;
+    const id = String(loraNodeId++);
+    nodes[id] = {
+      "class_type": "LoraLoader",
+      "inputs": { "model": modelRef, "clip": clipRef, "lora_name": name, "strength_model": mw, "strength_clip": cw }
+    };
+    modelRef = [id, 0];
+    clipRef  = [id, 1];
+  }
+
+  // ── Text encoders + sampler ───────────────────────────────
+  nodes["2"] = { "class_type": "CLIPTextEncode",  "inputs": { "text": prompt, "clip": clipRef } };
+  nodes["3"] = { "class_type": "CLIPTextEncode",  "inputs": { "text": "",     "clip": clipRef } };
+  nodes["4"] = { "class_type": "EmptyLatentImage","inputs": { "width": width, "height": height, "batch_size": 1 } };
+  nodes["5"] = {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": seed, "steps": steps, "cfg": cfg,
+      "sampler_name": sampler, "scheduler": sched, "denoise": 1.0,
+      "model": modelRef, "positive": ["2",0], "negative": ["3",0], "latent_image": ["4",0]
+    }
   };
+  nodes["6"] = { "class_type": "VAEDecode", "inputs": { "samples": ["5",0], "vae": ["1",2] } };
+  nodes["7"] = { "class_type": "SaveImage", "inputs": { "filename_prefix": "flux2klein", "images": ["6",0] } };
+  return nodes;
 }
 
 /* ═══════════════════════════════════════════════════════════
