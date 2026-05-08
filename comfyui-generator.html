@@ -682,19 +682,42 @@ select option { background: var(--surface3); }
         <label>Mode</label>
         <select id="clipMode" onchange="onClipModeChange()">
           <option value="bundled">Bundled with checkpoint (default)</option>
-          <option value="single">Single CLIP</option>
+          <option value="single">Single encoder (Qwen3 / CLIP)</option>
           <option value="dual">Dual CLIP — Flux / SD3</option>
         </select>
       </div>
       <div id="singleClipFields" style="display:none">
         <div class="field">
-          <label>CLIP Model</label>
+          <label>Loader Node</label>
+          <select id="clipLoaderNode" onchange="onClipLoaderNodeChange()">
+            <option value="CLIPLoaderGGUF">CLIPLoaderGGUF — Qwen3 / GGUF</option>
+            <option value="CLIPLoader">CLIPLoader — safetensors</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Model</label>
           <div style="display:flex;gap:6px">
             <select id="clipName" style="flex:1">
               <option value="">— click ↻ to load —</option>
             </select>
             <button class="btn btn-ghost btn-sm" onclick="loadClips()" title="Fetch CLIP models">↻</button>
           </div>
+        </div>
+        <div class="field" id="clipTypeField" style="display:none">
+          <label>Encoder Type</label>
+          <select id="clipType">
+            <option value="stable_diffusion">stable_diffusion</option>
+            <option value="stable_cascade">stable_cascade</option>
+            <option value="sd3">sd3</option>
+            <option value="stable_audio">stable_audio</option>
+            <option value="mochi">mochi</option>
+            <option value="ltxv">ltxv</option>
+            <option value="pixart">pixart</option>
+            <option value="cosmos">cosmos</option>
+            <option value="lumina2">lumina2</option>
+            <option value="wan">wan (Qwen)</option>
+            <option value="hidream">hidream</option>
+          </select>
         </div>
       </div>
       <div id="dualClipFields" style="display:none">
@@ -1233,6 +1256,12 @@ function onClipModeChange() {
   document.getElementById('dualClipFields').style.display   = m === 'dual'   ? 'block' : 'none';
 }
 
+function onClipLoaderNodeChange() {
+  const n = document.getElementById('clipLoaderNode').value;
+  // CLIPLoaderGGUF needs no "type" field; CLIPLoader does
+  document.getElementById('clipTypeField').style.display = n === 'CLIPLoader' ? 'block' : 'none';
+}
+
 /* ═══════════════════════════════════════════════════════════
    PROMPT HELPERS
 ═══════════════════════════════════════════════════════════ */
@@ -1348,8 +1377,15 @@ function builtinWorkflow(prompt, seed) {
   let clipRef;
   if (clipMode === 'single') {
     const cn = document.getElementById('clipName').value;
-    if (!cn) throw new Error('Text Encoder: Single CLIP — please select a CLIP model.');
-    nodes["20"] = { "class_type": "CLIPLoader", "inputs": { "clip_name": cn, "type": "stable_diffusion" } };
+    if (!cn) throw new Error('Text Encoder: Single encoder — please select a model (↻ to load list).');
+    const loaderNode = document.getElementById('clipLoaderNode').value;
+    if (loaderNode === 'CLIPLoaderGGUF') {
+      // Qwen3 / any GGUF text encoder — no type field needed
+      nodes["20"] = { "class_type": "CLIPLoaderGGUF", "inputs": { "clip_name": cn } };
+    } else {
+      const ctype = document.getElementById('clipType').value || 'stable_diffusion';
+      nodes["20"] = { "class_type": "CLIPLoader", "inputs": { "clip_name": cn, "type": ctype } };
+    }
     clipRef = ["20", 0];
   } else if (clipMode === 'dual') {
     const c1 = document.getElementById('dualClip1').value;
