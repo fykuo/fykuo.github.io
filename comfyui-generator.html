@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComfyUI Flux2Klein Generator</title>
+<style>
+:root {
+  --bg: #0d0d0d;
+  --surface: #161616;
+  --surface2: #1f1f1f;
+  --surface3: #2a2a2a;
+  --border: #2e2e2e;
+  --accent: #7c6cfc;
+  --accent2: #fc6c8f;
+  --text: #e4e4e4;
+  --text-muted: #777;
+  --text-dim: #444;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --error: #f87171;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Layout ── */
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-header h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  background: linear-gradient(120deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.app-header .subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  height: calc(100vh - 49px);
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.panel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.panel-header {
+  padding: 10px 14px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+.panel-body { padding: 14px; }
+
+.field { margin-bottom: 10px; }
+.field:last-child { margin-bottom: 0; }
+.field label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+input[type=text], input[type=number], select, textarea {
+  width: 100%;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+select option { background: var(--surface3); }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+/* Count pills */
+.count-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.count-pill {
+  flex: 1;
+  min-width: 36px;
+  padding: 6px 4px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.count-pill:hover { border-color: var(--accent); color: var(--text); }
+.count-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { filter: brightness(1.15); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+.btn-danger { background: var(--error); color: #fff; }
+.btn-danger:hover { filter: brightness(1.1); }
+.btn-danger:disabled { opacity: 0.3; cursor: not-allowed; filter: none; }
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+.btn-full { width: 100%; }
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { flex: 1; }
+
+/* Server status */
+.server-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.server-row input { flex: 1; }
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+}
+.dot.online { background: var(--success); }
+.dot.offline { background: var(--error); }
+.dot.checking { background: var(--warning); animation: blink 0.8s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* Notice */
+.notice {
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.25);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.72rem;
+  color: var(--warning);
+  line-height: 1.5;
+}
+.notice code {
+  background: rgba(255,255,255,0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+/* Progress */
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.progress-track {
+  height: 5px;
+  background: var(--surface3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.status-msg {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  min-height: 16px;
+  line-height: 1.4;
+}
+
+/* Collapsible */
+.chevron { font-size: 0.6rem; transition: transform 0.2s; }
+.chevron.open { transform: rotate(180deg); }
+.collapsible-body { display: none; padding: 14px; border-top: 1px solid var(--border); }
+.collapsible-body.open { display: block; }
+
+/* ── Gallery ── */
+.gallery-area {
+  overflow-y: auto;
+  padding: 20px;
+  background: var(--bg);
+}
+.gallery-area::-webkit-scrollbar { width: 6px; }
+.gallery-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.gallery-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 10px;
+}
+.gallery-count { font-size: 0.85rem; color: var(--text-muted); }
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.g-item {
+  position: relative;
+  aspect-ratio: 3/4;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s, transform 0.15s;
+  background: var(--surface2);
+}
+.g-item:hover { border-color: var(--accent); transform: scale(1.02); }
+.g-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.g-num {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+
+.g-hover {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: flex-end;
+  padding: 10px;
+}
+.g-item:hover .g-hover { opacity: 1; }
+.g-hover-text {
+  font-size: 0.68rem;
+  color: #ddd;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Placeholder states */
+.g-placeholder {
+  aspect-ratio: 3/4;
+  border-radius: 8px;
+  background: var(--surface2);
+  border: 2px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+}
+.g-placeholder.loading { border-color: var(--accent); }
+.g-placeholder.error { border-color: var(--error); }
+
+.spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-dim);
+}
+.empty-state .icon { font-size: 3.5rem; margin-bottom: 16px; }
+.empty-state p { font-size: 0.9rem; }
+.empty-state small { font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; display: block; }
+
+/* ── Slideshow ── */
+.slideshow {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 500;
+  display: none;
+  flex-direction: column;
+}
+.slideshow.active { display: flex; }
+
+.ss-timer-bar { height: 3px; background: var(--surface2); }
+.ss-timer-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+}
+
+.ss-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.ss-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+
+.ss-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 1.4rem;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  z-index: 10;
+}
+.ss-nav:hover { background: rgba(255,255,255,0.18); }
+.ss-nav.prev { left: 16px; }
+.ss-nav.next { right: 16px; }
+
+.ss-dots {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  max-width: 90vw;
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+.ss-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.ss-dot.active {
+  background: #fff;
+  transform: scale(1.5);
+}
+
+.ss-bar {
+  background: rgba(10,10,10,0.95);
+  border-top: 1px solid var(--border);
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.ss-info { flex: 1; min-width: 0; }
+.ss-counter { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px; }
+.ss-prompt { font-size: 0.75rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ss-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ss-controls select {
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 600;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.active { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: min(700px, 92vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h3 { font-size: 0.95rem; }
+.modal-body { overflow-y: auto; padding: 16px 20px; }
+.modal-body::-webkit-scrollbar { width: 4px; }
+.modal-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.prompt-bank-item {
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.prompt-bank-item:hover { border-color: var(--accent); }
+.prompt-bank-item .pbi-num { color: var(--text-muted); font-size: 0.68rem; margin-bottom: 3px; }
+
+/* Responsive */
+@media (max-width: 700px) {
+  .layout { grid-template-columns: 1fr; height: auto; }
+  .sidebar { height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .gallery-area { min-height: 60vh; }
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>⚡ ComfyUI Flux2Klein</h1>
+  <span class="subtitle">Portrait Generator</span>
+</header>
+
+<div class="layout">
+<!-- ─── Sidebar ─── -->
+<aside class="sidebar">
+
+  <!-- Server -->
+  <div class="panel">
+    <div class="panel-header">ComfyUI Server</div>
+    <div class="panel-body">
+      <div class="field">
+        <label>Server URL</label>
+        <div class="server-row">
+          <input type="text" id="serverUrl" value="http://127.0.0.1:8188" placeholder="http://host:8188">
+          <button class="btn btn-ghost btn-sm" onclick="testConnection()">Test</button>
+        </div>
+        <div class="status-line">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">Not tested</span>
+        </div>
+      </div>
+      <div class="notice">
+        When accessing from a remote URL, launch ComfyUI with
+        <code>--enable-cors-header</code> to allow browser requests.
+      </div>
+    </div>
+  </div>
+
+  <!-- Generation -->
+  <div class="panel">
+    <div class="panel-header">Generation Settings</div>
+    <div class="panel-body">
+      <div class="field">
+        <label>Number of Images</label>
+        <div class="count-row" id="countRow">
+          <div class="count-pill active" data-count="5">5</div>
+          <div class="count-pill" data-count="10">10</div>
+          <div class="count-pill" data-count="20">20</div>
+          <div class="count-pill" data-count="50">50</div>
+          <div class="count-pill" data-count="100">100</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Checkpoint / Model</label>
+        <input type="text" id="modelName" value="flux2klein.safetensors" placeholder="model.safetensors">
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Steps</label>
+          <input type="number" id="steps" value="20" min="1" max="150">
+        </div>
+        <div class="field">
+          <label>CFG Scale</label>
+          <input type="number" id="cfg" value="1.0" min="0" max="30" step="0.1">
+        </div>
+        <div class="field">
+          <label>Width</label>
+          <input type="number" id="imgWidth" value="768" min="64" max="2048" step="64">
+        </div>
+        <div class="field">
+          <label>Height</label>
+          <input type="number" id="imgHeight" value="1024" min="64" max="2048" step="64">
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Sampler</label>
+          <select id="sampler">
+            <option value="euler" selected>euler</option>
+            <option value="euler_ancestral">euler_ancestral</option>
+            <option value="dpmpp_2m">dpmpp_2m</option>
+            <option value="dpmpp_sde">dpmpp_sde</option>
+            <option value="lcm">lcm</option>
+            <option value="uni_pc">uni_pc</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Scheduler</label>
+          <select id="scheduler">
+            <option value="simple" selected>simple</option>
+            <option value="karras">karras</option>
+            <option value="exponential">exponential</option>
+            <option value="sgm_uniform">sgm_uniform</option>
+            <option value="normal">normal</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Advanced: custom workflow JSON -->
+    <div class="panel-header collapsible-toggle" onclick="toggleCollapsible(this)">
+      Advanced — Custom Workflow
+      <span class="chevron">▼</span>
+    </div>
+    <div class="collapsible-body">
+      <div class="field">
+        <label>Paste ComfyUI workflow JSON (API format)</label>
+        <textarea id="customWorkflowJson" style="min-height:120px;font-family:monospace;font-size:0.72rem"
+          placeholder='Leave empty to use built-in workflow.&#10;&#10;Tip: In your workflow, set the positive prompt text to {{POSITIVE_PROMPT}} and seed to -1 before pasting.'></textarea>
+      </div>
+      <p style="font-size:0.72rem;color:var(--text-muted);line-height:1.5">
+        Export from ComfyUI via <strong>Save (API format)</strong>. Mark the positive prompt node text as <code>{{POSITIVE_PROMPT}}</code> and any seed as <code>-1</code>.
+      </p>
+    </div>
+  </div>
+
+  <!-- Prompt -->
+  <div class="panel">
+    <div class="panel-header">Prompt</div>
+    <div class="panel-body">
+      <div class="field">
+        <label>Mode</label>
+        <select id="promptMode" onchange="onPromptModeChange()">
+          <option value="cycle">Cycle through bank</option>
+          <option value="random">Random from bank</option>
+          <option value="custom">Custom (fixed)</option>
+          <option value="custom+style">Custom + random style tag</option>
+        </select>
+      </div>
+      <div class="field" id="customPromptField" style="display:none">
+        <label>Custom Prompt</label>
+        <textarea id="customPrompt">portrait of a stocky muscular man, professional photography, dramatic lighting</textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" onclick="previewPrompt()">Preview</button>
+        <button class="btn btn-ghost btn-sm" onclick="openBankModal()">View Bank ({{ n }})</button>
+      </div>
+      <div id="promptPreview" style="display:none;margin-top:8px;padding:8px;background:var(--surface3);border-radius:5px;font-size:0.72rem;color:var(--text-muted);line-height:1.5"></div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="panel">
+    <div class="panel-header">Generate</div>
+    <div class="panel-body">
+      <div style="margin-bottom:12px">
+        <div class="progress-header">
+          <span id="progressLabel">Ready</span>
+          <span id="progressCount"></span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="status-msg" id="statusMsg"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="generateBtn" onclick="startGeneration()">▶ Generate</button>
+        <button class="btn btn-danger" id="stopBtn" onclick="requestStop()" disabled>■ Stop</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slideshow -->
+  <div class="panel">
+    <div class="panel-header">Slideshow</div>
+    <div class="panel-body">
+      <div class="field">
+        <label>Slide Interval</label>
+        <select id="slideIntervalSelect">
+          <option value="2000">2 seconds</option>
+          <option value="3000" selected>3 seconds</option>
+          <option value="5000">5 seconds</option>
+          <option value="8000">8 seconds</option>
+          <option value="15000">15 seconds</option>
+          <option value="0">Manual only</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-full" id="ssOpenBtn" onclick="openSlideshow(0)" disabled>▷ Start Slideshow</button>
+    </div>
+  </div>
+
+</aside>
+
+<!-- ─── Gallery ─── -->
+<main class="gallery-area">
+  <div class="gallery-topbar">
+    <span class="gallery-count" id="galleryCount">0 images</span>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="openSlideshow(0)" id="ssBtn2" disabled>▷ Slideshow</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearGallery()">Clear</button>
+    </div>
+  </div>
+  <div class="gallery-grid" id="galleryGrid">
+    <div class="empty-state">
+      <div class="icon">🖼️</div>
+      <p>No images yet</p>
+      <small>Configure the settings and click Generate</small>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- ─── Slideshow Overlay ─── -->
+<div class="slideshow" id="slideshow">
+  <div class="ss-timer-bar"><div class="ss-timer-fill" id="ssTimerFill"></div></div>
+  <div class="ss-stage">
+    <button class="ss-nav prev" onclick="ssPrev()">&#8249;</button>
+    <img class="ss-img" id="ssImg" src="" alt="">
+    <button class="ss-nav next" onclick="ssNext()">&#8250;</button>
+    <div class="ss-dots" id="ssDots"></div>
+  </div>
+  <div class="ss-bar">
+    <div class="ss-info">
+      <div class="ss-counter" id="ssCounter">1 / 1</div>
+      <div class="ss-prompt" id="ssPromptText"></div>
+    </div>
+    <div class="ss-controls">
+      <select id="ssIntervalSelect" onchange="ssChangeInterval()">
+        <option value="2000">2s</option>
+        <option value="3000" selected>3s</option>
+        <option value="5000">5s</option>
+        <option value="8000">8s</option>
+        <option value="15000">15s</option>
+        <option value="0">Manual</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" id="ssPlayBtn" onclick="ssTogglePlay()">⏸ Pause</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeSlideshow()">✕ Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Prompt Bank Modal ─── -->
+<div class="modal-backdrop" id="bankModal" onclick="closeBankModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Default Prompt Bank</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeBankModal()">✕</button>
+    </div>
+    <div class="modal-body" id="bankModalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   PROMPT BANK — stocky man portrait, various scenarios
+═══════════════════════════════════════════════════════════ */
+const PROMPT_BANK = [
+  // Urban / professional
+  "portrait of a stocky muscular man in a tailored charcoal suit on a glass skyscraper rooftop, golden hour, hands clasped, eye-level shot, bokeh city skyline, cinematic lighting",
+  "heavyset bearded man in business casual on a busy city sidewalk, arms crossed, confident smirk, dutch angle, neon signs background, evening rain reflections, street photography",
+  "stocky man in a crisp white dress shirt, sleeves rolled up, standing at floor-to-ceiling office windows overlooking a city, 3/4 back view, dramatic rim lighting",
+  "burly man in a tailored navy suit at the head of a long conference table, slight forward lean, dominant pose, low angle, soft overhead office lighting",
+
+  // Mountain / outdoors
+  "powerful stocky man at the edge of a rocky mountain cliff, arms wide open, heroic low-angle shot, dramatic storm clouds behind him, golden backlight, epic landscape",
+  "stocky hiker in gear at a mountain summit, one boot on a boulder, surveying a vast valley, side profile, misty alpine light, adventure photography",
+  "heavyset man in a thick wool coat walking a snow-covered forest path, breath misting in cold air, candid over-shoulder shot, winter morning light, cinematic grade",
+  "burly man in cargo pants and boots crossing a jungle river, machete in hand, determined expression, low angle, lush tropical foliage, documentary style",
+
+  // Forests / nature
+  "stocky man in a plaid flannel shirt sitting on a fallen log in a pine forest, elbows on knees, relaxed expression, dappled afternoon light, warm tones",
+  "heavyset outdoorsman at a campfire under a star-filled sky, cast in warm orange firelight, medium close-up, contemplative mood, milky way visible above",
+  "burly man fishing at a still mountain lake at dawn, standing knee-deep, focused calm expression, low angle, golden morning mist, reflections on water",
+
+  // Beach / water
+  "stocky athletic man on a tropical beach at sunset, arms stretched wide, laughing, low-angle dramatic shot, water spray, golden warm light, lifestyle photography",
+  "burly man in swim shorts emerging from ocean waves, powerful stance, hands wiping face, backlit by setting sun, dramatic silhouette, action photography",
+  "heavyset man in a wetsuit on a rocky coastline, surfboard under arm, studying the waves, side profile, moody overcast sky, desaturated surf photography",
+
+  // Gym / sports
+  "stocky powerlifter in a gym, chalk on hands, gripping a loaded barbell, intense focused gaze, extreme low angle, single dramatic overhead industrial light",
+  "burly man shadow boxing in a boxing gym, gloves raised, mid-punch, low angle, dramatic side lighting, sweat catching the light, motion blur on fist",
+  "heavyset rugby player charging forward, ball tucked, mud on kit, low angle, crowd blur in background, raw sports action photography",
+  "stocky martial artist in a fighting stance, gi uniform, wooden dojo floor, low angle, strong directional light, disciplined energy",
+  "burly man mid-sprint on a red running track, low panning shot, motion blur on background, explosive leg power, sports photography",
+
+  // Trades / working class
+  "stocky master chef in white double-breasted uniform, arms crossed, stainless-steel professional kitchen, confident half-smile, dramatic overhead lighting, authentic portrait",
+  "burly mechanic leaning against a vintage muscle car, grease on forearms, satisfied relaxed expression, garage background, warm tungsten light, medium shot",
+  "heavyset blacksmith at the forge, hammer raised above glowing red iron, dramatic fire-glow from below, low angle looking up, powerful action portrait",
+  "stocky fisherman on the deck of a working boat, rain slicker, hauling a net, grey overcast sea, dramatic side light, documentary photography",
+  "burly firefighter in full turnout gear, helmet tucked under arm, fire station doorway, proud composed stance, eye-level documentary portrait",
+  "stocky lumberjack with an axe over his shoulder, freshly cut clearing, backlit afternoon sun, sawdust in the air, heroic low-angle framing",
+  "heavyset construction foreman in a hard hat and hi-vis vest, arms folded surveying a building site, confident authority, golden-hour light, candid shot",
+
+  // Cultural / historical
+  "dignified portrait of a stocky man in a traditional Japanese kimono, standing in a raked-sand zen garden, respectful slight bow, soft diffused daylight, wide shot",
+  "burly man in full Viking warrior regalia, fur cloak, standing in a misty pine forest, axe in hand, proud pose, desaturated cinematic grade",
+  "stocky man as a Renaissance-era merchant, seated at a wooden desk with maps and gold coins, 3/4 angle, Rembrandt chiaroscuro lighting, painterly aesthetic",
+  "heavyset man in Scottish Highland tartan kilt, standing on a misty moorland, claymore walking staff, three-quarter angle, dramatic cloud sky",
+
+  // Moody / contemplative
+  "weathered stocky man sitting on wooden porch steps at dusk, elbows on knees, staring into the middle distance, warm golden backlight, melancholic cinematic mood",
+  "burly man alone at a dim bar, one hand around a whiskey glass, neon beer sign glow, shallow depth of field, film noir atmosphere",
+  "stocky man in a heavy raincoat on an empty rain-soaked street at night, back to camera, looking up, neon reflections on wet pavement, urban solitude",
+  "heavyset man in a leather armchair in a dimly lit library, reading by lamplight, surrounded by stacked books, warm Rembrandt lighting, close 3/4 portrait",
+
+  // Lifestyle
+  "stocky man in a worn leather jacket leaning on a vintage motorcycle at sunset on a country road, arms folded, cool relaxed stance, wide angle, warm light",
+  "burly man in an apron flipping a steak on a backyard grill, laughing, relaxed, natural summer light, genuine candid feel, lifestyle photography",
+  "stocky man playing fetch with a large dog in an autumn park, crouching, wide smile, fall foliage colors, natural light, documentary warmth",
+  "heavyset man sipping coffee at an outdoor café table, city street behind him, relaxed confident posture, morning light, street-level candid angle",
+];
+
+const STYLE_TAGS = [
+  "shot on Hasselblad H6D, f/2, cinematic color grade",
+  "photorealistic, 8K resolution, award-winning portrait photography",
+  "dramatic chiaroscuro lighting, high contrast, editorial style",
+  "soft natural light, subtle film grain, authentic intimate mood",
+  "studio strobe lighting, clean background, commercial photography",
+  "golden hour, warm tones, lifestyle magazine cover",
+  "desaturated matte grade, atmospheric, moody fine-art portrait",
+  "sharp focus, shallow depth of field, 85mm portrait lens",
+];
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
+let gallery = [];          // { src, prompt }
+let isGenerating = false;
+let stopFlag = false;
+let selectedCount = 5;
+let bankCursor = 0;
+
+let ssIndex = 0;
+let ssPlaying = true;
+let ssInterval = 3000;
+let ssTimer = null;
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════ */
+document.querySelectorAll('.count-pill').forEach(p => {
+  p.addEventListener('click', () => {
+    document.querySelectorAll('.count-pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    selectedCount = parseInt(p.dataset.count);
+  });
+});
+
+// Update bank count in button text
+document.querySelector('[onclick="openBankModal()"]').textContent =
+  `View Bank (${PROMPT_BANK.length})`;
+
+/* ═══════════════════════════════════════════════════════════
+   SERVER
+═══════════════════════════════════════════════════════════ */
+async function testConnection() {
+  const url = serverUrl();
+  setDot('checking', 'Connecting…');
+  try {
+    const r = await fetch(`${url}/system_stats`, { signal: AbortSignal.timeout(6000) });
+    r.ok ? setDot('online', 'Connected ✓') : setDot('offline', `HTTP ${r.status}`);
+  } catch {
+    setDot('offline', 'Unreachable — check URL & CORS');
+  }
+}
+function setDot(state, msg) {
+  document.getElementById('statusDot').className = `dot ${state}`;
+  document.getElementById('statusText').textContent = msg;
+}
+function serverUrl() {
+  return document.getElementById('serverUrl').value.trim().replace(/\/$/, '');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROMPT HELPERS
+═══════════════════════════════════════════════════════════ */
+function onPromptModeChange() {
+  const m = document.getElementById('promptMode').value;
+  document.getElementById('customPromptField').style.display =
+    (m === 'custom' || m === 'custom+style') ? 'block' : 'none';
+}
+
+function getPrompt(i) {
+  const m = document.getElementById('promptMode').value;
+  let base;
+  if (m === 'cycle') base = PROMPT_BANK[i % PROMPT_BANK.length];
+  else if (m === 'random') base = PROMPT_BANK[Math.floor(Math.random() * PROMPT_BANK.length)];
+  else {
+    base = document.getElementById('customPrompt').value.trim() || PROMPT_BANK[0];
+    if (m === 'custom+style') {
+      base += ', ' + STYLE_TAGS[Math.floor(Math.random() * STYLE_TAGS.length)];
+    }
+  }
+  return base;
+}
+
+function previewPrompt() {
+  const el = document.getElementById('promptPreview');
+  el.textContent = getPrompt(bankCursor);
+  el.style.display = 'block';
+}
+
+function openBankModal() {
+  const body = document.getElementById('bankModalBody');
+  body.innerHTML = PROMPT_BANK.map((p, i) => `
+    <div class="prompt-bank-item" onclick="useBankPrompt(${i})">
+      <div class="pbi-num">#${i + 1}</div>
+      ${escHtml(p)}
+    </div>`).join('');
+  document.getElementById('bankModal').classList.add('active');
+}
+function closeBankModal(e) {
+  if (!e || e.target === document.getElementById('bankModal'))
+    document.getElementById('bankModal').classList.remove('active');
+}
+function useBankPrompt(i) {
+  document.getElementById('customPrompt').value = PROMPT_BANK[i];
+  document.getElementById('promptMode').value = 'custom';
+  onPromptModeChange();
+  closeBankModal();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WORKFLOW BUILDER
+═══════════════════════════════════════════════════════════ */
+function buildWorkflow(prompt, seed) {
+  const customJson = document.getElementById('customWorkflowJson').value.trim();
+  if (customJson) {
+    try {
+      const wf = JSON.parse(customJson);
+      return injectIntoWorkflow(wf, prompt, seed);
+    } catch (e) {
+      throw new Error('Invalid custom workflow JSON: ' + e.message);
+    }
+  }
+  return builtinWorkflow(prompt, seed);
+}
+
+function injectIntoWorkflow(wf, prompt, seed) {
+  for (const id in wf) {
+    const node = wf[id];
+    // Replace {{POSITIVE_PROMPT}} placeholder
+    if (node.inputs) {
+      for (const k in node.inputs) {
+        if (typeof node.inputs[k] === 'string' &&
+            node.inputs[k].includes('{{POSITIVE_PROMPT}}')) {
+          node.inputs[k] = node.inputs[k].replace('{{POSITIVE_PROMPT}}', prompt);
+        }
+      }
+      // Replace seed -1 with random seed
+      if (node.inputs.seed === -1) node.inputs.seed = seed;
+      if (node.inputs.noise_seed === -1) node.inputs.noise_seed = seed;
+    }
+  }
+  return wf;
+}
+
+function builtinWorkflow(prompt, seed) {
+  const model    = document.getElementById('modelName').value.trim() || 'flux2klein.safetensors';
+  const steps    = parseInt(document.getElementById('steps').value) || 20;
+  const cfg      = parseFloat(document.getElementById('cfg').value) || 1.0;
+  const width    = parseInt(document.getElementById('imgWidth').value) || 768;
+  const height   = parseInt(document.getElementById('imgHeight').value) || 1024;
+  const sampler  = document.getElementById('sampler').value;
+  const sched    = document.getElementById('scheduler').value;
+
+  return {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": model } },
+    "2": { "class_type": "CLIPTextEncode",  "inputs": { "text": prompt, "clip": ["1", 1] } },
+    "3": { "class_type": "CLIPTextEncode",  "inputs": { "text": "",     "clip": ["1", 1] } },
+    "4": { "class_type": "EmptyLatentImage","inputs": { "width": width, "height": height, "batch_size": 1 } },
+    "5": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": seed, "steps": steps, "cfg": cfg,
+        "sampler_name": sampler, "scheduler": sched, "denoise": 1.0,
+        "model": ["1",0], "positive": ["2",0], "negative": ["3",0], "latent_image": ["4",0]
+      }
+    },
+    "6": { "class_type": "VAEDecode", "inputs": { "samples": ["5",0], "vae": ["1",2] } },
+    "7": { "class_type": "SaveImage", "inputs": { "filename_prefix": "flux2klein", "images": ["6",0] } }
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GENERATION LOOP
+═══════════════════════════════════════════════════════════ */
+function randSeed() { return Math.floor(Math.random() * 2 ** 32); }
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function startGeneration() {
+  if (isGenerating) return;
+  isGenerating = true;
+  stopFlag = false;
+  bankCursor = 0;
+
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('stopBtn').disabled = false;
+
+  const total = selectedCount;
+  const url = serverUrl();
+  let done = 0;
+
+  // Seed the grid with placeholders
+  clearGridForRun(total);
+
+  setProgress(0, total, 'Starting…');
+
+  for (let i = 0; i < total; i++) {
+    if (stopFlag) break;
+
+    const prompt = getPrompt(i);
+    const seed   = randSeed();
+
+    setProgress(i, total, `Image ${i + 1} / ${total} — queuing…`);
+    setPlaceholderLoading(i);
+
+    try {
+      const src = await generateOne(url, prompt, seed, i);
+      replacePlaceholder(i, src, prompt);
+      done++;
+    } catch (err) {
+      setPlaceholderError(i, err.message);
+      console.error(`[${i+1}] ${err.message}`);
+    }
+
+    bankCursor++;
+    setProgress(i + 1, total, stopFlag ? 'Stopped.' : `${i + 1} / ${total} complete`);
+  }
+
+  isGenerating = false;
+  document.getElementById('generateBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+
+  const msg = stopFlag
+    ? `Stopped — ${done} image${done !== 1 ? 's' : ''} generated`
+    : `Done — ${done} image${done !== 1 ? 's' : ''} generated`;
+  setProgress(done, total, msg);
+
+  if (gallery.length > 0) enableSlideshow();
+}
+
+function requestStop() {
+  stopFlag = true;
+  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('statusMsg').textContent = 'Stopping after current image…';
+}
+
+async function generateOne(url, prompt, seed, slotIndex) {
+  const clientId = uuid();
+  const workflow = buildWorkflow(prompt, seed);
+
+  const r = await fetch(`${url}/prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: workflow, client_id: clientId })
+  });
+  if (!r.ok) throw new Error(`Queue failed: HTTP ${r.status}`);
+  const { prompt_id } = await r.json();
+
+  setProgress(null, null, `Image ${slotIndex + 1} — generating (id: ${prompt_id.slice(0,8)}…)`);
+
+  const filename = await pollHistory(url, prompt_id);
+  return `${url}/view?filename=${encodeURIComponent(filename)}&subfolder=&type=output`;
+}
+
+async function pollHistory(url, promptId, timeout = 300_000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (stopFlag) throw new Error('Stopped by user');
+    await sleep(1200);
+    try {
+      const r = await fetch(`${url}/history/${promptId}`);
+      if (!r.ok) continue;
+      const data = await r.json();
+      if (data[promptId]) {
+        for (const outputs of Object.values(data[promptId].outputs || {})) {
+          if (outputs.images?.length) return outputs.images[0].filename;
+        }
+      }
+    } catch { /* network blip */ }
+  }
+  throw new Error('Timed out waiting for image');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROGRESS UI
+═══════════════════════════════════════════════════════════ */
+function setProgress(done, total, msg) {
+  if (done !== null && total !== null) {
+    const pct = total > 0 ? (done / total * 100) : 0;
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressLabel').textContent = total > 0 ? 'Progress' : 'Ready';
+    document.getElementById('progressCount').textContent = total > 0 ? `${done}/${total}` : '';
+  }
+  if (msg !== null) document.getElementById('statusMsg').textContent = msg;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GALLERY
+═══════════════════════════════════════════════════════════ */
+function clearGridForRun(total) {
+  gallery = [];
+  const grid = document.getElementById('galleryGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const el = document.createElement('div');
+    el.className = 'g-placeholder';
+    el.id = `slot-${i}`;
+    el.innerHTML = `<span style="color:var(--text-dim);font-size:0.72rem">#${i + 1}</span>`;
+    grid.appendChild(el);
+  }
+  updateGalleryCount();
+}
+
+function setPlaceholderLoading(i) {
+  const el = document.getElementById(`slot-${i}`);
+  if (!el) return;
+  el.className = 'g-placeholder loading';
+  el.innerHTML = '<div class="spinner"></div>';
+}
+
+function setPlaceholderError(i, msg) {
+  const el = document.getElementById(`slot-${i}`);
+  if (!el) return;
+  el.className = 'g-placeholder error';
+  el.innerHTML = `<span style="font-size:1.4rem">❌</span>
+    <span style="font-size:0.65rem;color:var(--error);text-align:center;padding:4px">${escHtml(msg)}</span>`;
+}
+
+function replacePlaceholder(slotIndex, src, prompt) {
+  const el = document.getElementById(`slot-${slotIndex}`);
+  if (!el) return;
+
+  const idx = gallery.length;
+  gallery.push({ src, prompt });
+
+  el.id = `gitem-${idx}`;
+  el.className = 'g-item';
+  el.innerHTML = `
+    <img src="${escHtml(src)}" alt="Generated ${idx + 1}" loading="lazy">
+    <span class="g-num">#${idx + 1}</span>
+    <div class="g-hover"><div class="g-hover-text">${escHtml(prompt)}</div></div>`;
+  el.addEventListener('click', () => openSlideshow(idx));
+
+  updateGalleryCount();
+  updateSsDotsIfOpen();
+}
+
+function clearGallery() {
+  if (!confirm('Clear all generated images?')) return;
+  gallery = [];
+  const grid = document.getElementById('galleryGrid');
+  grid.innerHTML = `<div class="empty-state">
+    <div class="icon">🖼️</div>
+    <p>No images yet</p>
+    <small>Configure the settings and click Generate</small>
+  </div>`;
+  disableSlideshow();
+  updateGalleryCount();
+  setProgress(0, 0, '');
+  document.getElementById('progressLabel').textContent = 'Ready';
+  document.getElementById('progressCount').textContent = '';
+}
+
+function updateGalleryCount() {
+  const n = gallery.length;
+  document.getElementById('galleryCount').textContent =
+    `${n} image${n !== 1 ? 's' : ''}`;
+}
+
+function enableSlideshow() {
+  document.getElementById('ssOpenBtn').disabled = false;
+  document.getElementById('ssBtn2').disabled = false;
+}
+function disableSlideshow() {
+  document.getElementById('ssOpenBtn').disabled = true;
+  document.getElementById('ssBtn2').disabled = true;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SLIDESHOW
+═══════════════════════════════════════════════════════════ */
+function openSlideshow(startIndex) {
+  if (!gallery.length) return;
+  ssIndex = Math.max(0, Math.min(startIndex, gallery.length - 1));
+  ssPlaying = true;
+  ssInterval = parseInt(document.getElementById('slideIntervalSelect').value);
+  document.getElementById('ssIntervalSelect').value = ssInterval;
+
+  document.getElementById('slideshow').classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  renderSsSlide();
+  renderSsDots();
+  if (ssInterval > 0) ssSchedule();
+  updateSsPlayBtn();
+}
+
+function closeSlideshow() {
+  ssClearTimer();
+  document.getElementById('slideshow').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function renderSsSlide() {
+  const item = gallery[ssIndex];
+  if (!item) return;
+  document.getElementById('ssImg').src = item.src;
+  document.getElementById('ssCounter').textContent = `${ssIndex + 1} / ${gallery.length}`;
+  document.getElementById('ssPromptText').textContent = item.prompt;
+  document.querySelectorAll('.ss-dot').forEach((d, i) => d.classList.toggle('active', i === ssIndex));
+}
+
+function renderSsDots() {
+  const el = document.getElementById('ssDots');
+  if (gallery.length > 60) { el.innerHTML = ''; return; }
+  el.innerHTML = gallery.map((_, i) =>
+    `<div class="ss-dot${i === ssIndex ? ' active' : ''}" onclick="ssGoto(${i})"></div>`
+  ).join('');
+}
+
+function updateSsDotsIfOpen() {
+  if (document.getElementById('slideshow').classList.contains('active')) renderSsDots();
+}
+
+function ssGoto(i) {
+  ssIndex = i;
+  renderSsSlide();
+  if (ssPlaying && ssInterval > 0) { ssClearTimer(); ssSchedule(); }
+}
+function ssPrev() { ssGoto((ssIndex - 1 + gallery.length) % gallery.length); }
+function ssNext() { ssGoto((ssIndex + 1) % gallery.length); }
+
+function ssSchedule() {
+  ssClearTimer();
+  const fill = document.getElementById('ssTimerFill');
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    fill.style.transition = `width ${ssInterval}ms linear`;
+    fill.style.width = '100%';
+  }));
+  ssTimer = setTimeout(() => { if (ssPlaying) ssNext(); }, ssInterval);
+}
+
+function ssClearTimer() {
+  clearTimeout(ssTimer);
+  ssTimer = null;
+  const fill = document.getElementById('ssTimerFill');
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+}
+
+function ssTogglePlay() {
+  ssPlaying = !ssPlaying;
+  if (ssPlaying && ssInterval > 0) ssSchedule();
+  else ssClearTimer();
+  updateSsPlayBtn();
+}
+function updateSsPlayBtn() {
+  document.getElementById('ssPlayBtn').textContent = ssPlaying ? '⏸ Pause' : '▶ Play';
+}
+
+function ssChangeInterval() {
+  ssInterval = parseInt(document.getElementById('ssIntervalSelect').value);
+  document.getElementById('slideIntervalSelect').value = ssInterval;
+  if (ssPlaying && ssInterval > 0) ssSchedule();
+  else if (!ssInterval) ssClearTimer();
+}
+
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('slideshow').classList.contains('active')) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); ssNext(); }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); ssPrev(); }
+  if (e.key === 'Escape')     closeSlideshow();
+  if (e.key.toLowerCase() === 'p') ssTogglePlay();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   COLLAPSIBLE
+═══════════════════════════════════════════════════════════ */
+function toggleCollapsible(header) {
+  const body = header.nextElementSibling;
+  const chevron = header.querySelector('.chevron');
+  const open = body.classList.toggle('open');
+  chevron.classList.toggle('open', open);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
