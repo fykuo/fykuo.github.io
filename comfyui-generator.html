@@ -1585,15 +1585,11 @@ async function generateOne(url, prompt, seed, slotIndex) {
   setProgress(null, null, `Image ${slotIndex + 1} — generating (id: ${prompt_id.slice(0,8)}…)`);
 
   const filename = await pollHistory(url, prompt_id, slotIndex);
-  setProgress(null, null, `Image ${slotIndex + 1} — downloading…`);
-  const viewUrl = `${url}/view?filename=${encodeURIComponent(filename)}&subfolder=&type=output`;
-  // Fetch the image bytes through the proxy (same path as API calls) and convert
-  // to a blob URL. This avoids handing a proxy URL directly to <img>, which breaks
-  // when the proxy mangles binary responses or returns the wrong Content-Type.
-  const imgResp = await fetch(proxied(viewUrl));
-  if (!imgResp.ok) throw new Error(`Image download failed: HTTP ${imgResp.status}`);
-  const blob = await imgResp.blob();
-  return URL.createObjectURL(blob);
+  // Return the direct view URL — <img> tags load cross-origin images without
+  // triggering CORS checks (no Origin header sent), so no proxy is needed here.
+  // Proxying the image URL causes 403s when Cloudflare blocks the proxy's server
+  // IP as a bot, which is what broke image display previously.
+  return `${url}/view?filename=${encodeURIComponent(filename)}&subfolder=&type=output`;
 }
 
 async function pollHistory(url, promptId, slotIndex, timeout = 300_000) {
