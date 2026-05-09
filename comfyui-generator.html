@@ -1600,10 +1600,8 @@ async function startGeneration() {
   document.getElementById('generateBtn').disabled = true;
   document.getElementById('stopBtn').disabled = false;
 
-  // Keep screen on while generating (Android Chrome / Samsung Internet).
-  // On iOS Safari wake lock is unsupported — warn the user to keep screen awake manually.
   await acquireWakeLock();
-  if (!wakeLock && 'wakeLock' in navigator === false) {
+  if (!wakeLock && !('wakeLock' in navigator)) {
     setProgress(null, null, '⚠ Keep screen on — wake lock not supported on this browser');
     await sleep(2500);
   }
@@ -1611,9 +1609,12 @@ async function startGeneration() {
   const total = selectedCount;
   const url = serverUrl();
   let done = 0;
+  const batchId = Date.now(); // unique prefix so slot IDs never collide across batches
 
-  // Append placeholders after any existing images (don't clear previous batch)
-  const slotOffset = appendPlaceholders(total);
+  // Clear the empty-state placeholder if this is the first batch
+  const grid = document.getElementById('galleryGrid');
+  const emptyEl = grid.querySelector('.empty-state');
+  if (emptyEl) emptyEl.remove();
 
   setProgress(0, total, 'Starting…');
 
@@ -1622,18 +1623,21 @@ async function startGeneration() {
 
     const prompt = getPrompt(i);
     const seed   = randSeed();
-    const slot   = slotOffset + i;
+    const slotId = `slot-${batchId}-${i}`;
 
     setProgress(i, total, `Image ${i + 1} / ${total} — queuing…`);
-    setPlaceholderLoading(slot);
+    // Prepend a single loading slot at the very top so the newest image
+    // always lands at position 0 when it finishes.
+    prependLoadingSlot(slotId);
 
     try {
       const src = await generateOne(url, prompt, seed, i);
-      replacePlaceholder(slot, src, prompt);
+      fillSlot(slotId, src, prompt);
       done++;
     } catch (err) {
-      setPlaceholderError(slot, err.message);
-      console.error(`[${i+1}] ${err.message}`);
+      // Remove the slot entirely — no point leaving blank space for failures
+      removeSlot(slotId);
+      console.error(`[${i + 1}] ${err.message}`);
     }
 
     bankCursor++;
@@ -1774,58 +1778,37 @@ function setProgress(done, total, msg) {
 /* ═══════════════════════════════════════════════════════════
    GALLERY
 ═══════════════════════════════════════════════════════════ */
-function appendPlaceholders(total) {
+function prependLoadingSlot(slotId) {
   const grid = document.getElementById('galleryGrid');
-  const empty = grid.querySelector('.empty-state');
-  if (empty) empty.remove();
-  const offset = gallery.length;
-  // Build the batch's placeholders in a fragment, then prepend the whole
-  // block so the newest batch always appears at the top of the grid.
-  const frag = document.createDocumentFragment();
-  for (let i = 0; i < total; i++) {
-    const el = document.createElement('div');
-    el.className = 'g-placeholder';
-    el.id = `slot-${offset + i}`;
-    el.innerHTML = `<span style="color:var(--text-dim);font-size:0.72rem">#${offset + i + 1}</span>`;
-    frag.appendChild(el);
-  }
-  grid.insertBefore(frag, grid.firstChild);
-  updateGalleryCount();
-  return offset; // caller uses this as slot index base
-}
-
-function setPlaceholderLoading(i) {
-  const el = document.getElementById(`slot-${i}`);
-  if (!el) return;
+  const el = document.createElement('div');
   el.className = 'g-placeholder loading';
+  el.id = slotId;
   el.innerHTML = '<div class="spinner"></div>';
+  grid.insertBefore(el, grid.firstChild);
 }
 
-function setPlaceholderError(i, msg) {
-  const el = document.getElementById(`slot-${i}`);
+function fillSlot(slotId, src, prompt) {
+  const el = document.getElementById(slotId);
   if (!el) return;
-  el.className = 'g-placeholder error';
-  el.innerHTML = `<span style="font-size:1.4rem">❌</span>
-    <span style="font-size:0.65rem;color:var(--error);text-align:center;padding:4px">${escHtml(msg)}</span>`;
-}
-
-function replacePlaceholder(slotIndex, src, prompt) {
-  const el = document.getElementById(`slot-${slotIndex}`);
-  if (!el) return;
-
   const idx = gallery.length;
   gallery.push({ src, prompt });
-
   el.id = `gitem-${idx}`;
   el.className = 'g-item';
-  el.innerHTML = `
-    <img src="${escHtml(src)}" alt="Generated ${idx + 1}" loading="lazy">
+  el.innerHTML = `<img src="${escHtml(src)}" alt="Generated ${idx + 1}" loading="lazy">
     <span class="g-num">#${idx + 1}</span>
     <div class="g-hover"><div class="g-hover-text">${escHtml(prompt)}</div></div>`;
   el.addEventListener('click', () => openSlideshow(idx));
-
   updateGalleryCount();
   updateSsDotsIfOpen();
+}
+
+function removeSlot(slotId) {
+  const el = document.getElementById(slotId);
+  if (el) el.remove();
+  const grid = document.getElementById('galleryGrid');
+  if (!grid.querySelector('.g-item, .g-placeholder')) {
+    grid.innerHTML = `<div class="empty-state"><div class="icon">🖼️</div><p>No images yet</p><small>Configure the settings and click Generate</small></div>`;
+  }
 }
 
 function clearGallery() {
