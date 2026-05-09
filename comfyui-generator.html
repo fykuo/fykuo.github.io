@@ -1584,28 +1584,48 @@ async function generateOne(url, prompt, seed, slotIndex) {
 
   setProgress(null, null, `Image ${slotIndex + 1} — generating (id: ${prompt_id.slice(0,8)}…)`);
 
-  const filename = await pollHistory(url, prompt_id);
-  // Image src uses proxied URL only if a proxy is set (img tags are no-cors by default,
-  // but some proxies are needed when the server returns non-image content-type)
+  const filename = await pollHistory(url, prompt_id, slotIndex);
   const viewUrl = `${url}/view?filename=${encodeURIComponent(filename)}&subfolder=&type=output`;
   return proxied(viewUrl);
 }
 
-async function pollHistory(url, promptId, timeout = 300_000) {
+async function pollHistory(url, promptId, slotIndex, timeout = 300_000) {
   const deadline = Date.now() + timeout;
+  let n = 0;
   while (Date.now() < deadline) {
     if (stopFlag) throw new Error('Stopped by user');
-    await sleep(1200);
+    await sleep(1500);
+    n++;
+    // Cache-bust so proxies don't serve a stale empty response from early in the poll cycle
+    const pollUrl = proxied(`${url}/history/${promptId}?_=${Date.now()}`);
+    let data;
     try {
-      const r = await fetch(proxied(`${url}/history/${promptId}`));
-      if (!r.ok) continue;
-      const data = await r.json();
-      if (data[promptId]) {
-        for (const outputs of Object.values(data[promptId].outputs || {})) {
-          if (outputs.images?.length) return outputs.images[0].filename;
-        }
+      const r = await fetch(pollUrl);
+      if (!r.ok) {
+        console.warn(`[poll #${n}] HTTP ${r.status}`);
+        setProgress(null, null, `Image ${slotIndex + 1} — waiting… (poll ${n}, HTTP ${r.status})`);
+        continue;
       }
-    } catch { /* network blip */ }
+      data = await r.json();
+    } catch (e) {
+      console.warn(`[poll #${n}] Fetch/parse error:`, e.message);
+      setProgress(null, null, `Image ${slotIndex + 1} — waiting… (poll ${n}, net error)`);
+      continue;
+    }
+
+    console.log(`[poll #${n}]`, JSON.stringify(data).slice(0, 300));
+    setProgress(null, null, `Image ${slotIndex + 1} — generating… (poll ${n})`);
+
+    const entry = data[promptId];
+    if (entry) {
+      const status = entry.status?.status_string;
+      const outputs = entry.outputs || {};
+      console.log(`[poll #${n}] status=${status} outputKeys=${Object.keys(outputs)}`);
+      for (const nodeOut of Object.values(outputs)) {
+        if (nodeOut.images?.length) return nodeOut.images[0].filename;
+      }
+      // Entry exists but no image yet (still executing) — keep polling
+    }
   }
   throw new Error('Timed out waiting for image');
 }
