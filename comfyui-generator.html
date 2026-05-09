@@ -704,8 +704,9 @@ select option { background: var(--surface3); }
           </div>
         </div>
         <div class="field" id="clipTypeField" style="display:none">
-          <label>Encoder Type</label>
+          <label>Encoder Type <span style="color:var(--text-dim);font-weight:400" id="clipTypeHint"></span></label>
           <select id="clipType">
+            <option value="">— auto-detect / not required —</option>
             <option value="stable_diffusion">stable_diffusion</option>
             <option value="stable_cascade">stable_cascade</option>
             <option value="sd3">sd3</option>
@@ -1273,12 +1274,21 @@ function onClipModeChange() {
   const m = document.getElementById('clipMode').value;
   document.getElementById('singleClipFields').style.display = m === 'single' ? 'block' : 'none';
   document.getElementById('dualClipFields').style.display   = m === 'dual'   ? 'block' : 'none';
+  if (m === 'single') onClipLoaderNodeChange(); // sync type-field visibility
 }
 
 function onClipLoaderNodeChange() {
   const n = document.getElementById('clipLoaderNode').value;
-  // CLIPLoaderGGUF needs no "type" field; CLIPLoader does
-  document.getElementById('clipTypeField').style.display = n === 'CLIPLoader' ? 'block' : 'none';
+  // Show type field for both — CLIPLoader requires it, CLIPLoaderGGUF may require it
+  // depending on the installed extension version. Blank = don't send the field.
+  document.getElementById('clipTypeField').style.display = 'block';
+  document.getElementById('clipTypeHint').textContent =
+    n === 'CLIPLoaderGGUF' ? '(optional — depends on extension version)' : '(required)';
+  if (n === 'CLIPLoader') {
+    // CLIPLoader has no blank option; force a default if blank
+    const sel = document.getElementById('clipType');
+    if (!sel.value) sel.value = 'stable_diffusion';
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1398,12 +1408,15 @@ function builtinWorkflow(prompt, seed) {
     const cn = document.getElementById('clipName').value;
     if (!cn) throw new Error('Text Encoder: Single encoder — please select a model (↻ to load list).');
     const loaderNode = document.getElementById('clipLoaderNode').value;
+    const ctype = document.getElementById('clipType').value;
     if (loaderNode === 'CLIPLoaderGGUF') {
-      // Qwen3 / any GGUF text encoder — no type field needed
-      nodes["20"] = { "class_type": "CLIPLoaderGGUF", "inputs": { "clip_name": cn } };
+      // Include "type" only when the user selected one — some extension versions require it,
+      // others auto-detect from GGUF metadata. Blank = omit field.
+      const inputs = { "clip_name": cn };
+      if (ctype) inputs["type"] = ctype;
+      nodes["20"] = { "class_type": "CLIPLoaderGGUF", "inputs": inputs };
     } else {
-      const ctype = document.getElementById('clipType').value || 'stable_diffusion';
-      nodes["20"] = { "class_type": "CLIPLoader", "inputs": { "clip_name": cn, "type": ctype } };
+      nodes["20"] = { "class_type": "CLIPLoader", "inputs": { "clip_name": cn, "type": ctype || 'stable_diffusion' } };
     }
     clipRef = ["20", 0];
   } else if (clipMode === 'dual') {
@@ -1551,10 +1564,21 @@ async function generateOne(url, prompt, seed, slotIndex) {
     let detail = '';
     try {
       const err = await r.json();
-      detail = err?.error?.message || err?.error || JSON.stringify(err);
+      // Prefer node-level validation errors — they name the actual missing/invalid field
+      const nodeErrors = err?.node_errors || {};
+      if (Object.keys(nodeErrors).length) {
+        detail = Object.entries(nodeErrors).map(([id, ne]) => {
+          const msgs = (ne.errors || [])
+            .map(e => `${e.message}${e.details ? ': "' + e.details + '"' : ''}`)
+            .join(', ');
+          return `Node ${id} [${ne.class_type}]: ${msgs}`;
+        }).join(' | ');
+      } else {
+        detail = err?.error?.message || err?.error || JSON.stringify(err);
+      }
     } catch { try { detail = await r.text(); } catch {} }
-    console.error('[flux2klein] 400 detail:', detail);
-    throw new Error(`Queue failed: HTTP ${r.status} — ${detail.slice(0, 300)}`);
+    console.error('[flux2klein] Queue error:', detail);
+    throw new Error(`Queue failed HTTP ${r.status}: ${detail.slice(0, 500)}`);
   }
   const { prompt_id } = await r.json();
 
