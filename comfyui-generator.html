@@ -577,7 +577,7 @@ select option { background: var(--surface3); }
       </div>
       <div class="field" style="margin-top:10px">
         <label>CORS Proxy URL <span style="color:var(--text-dim);font-weight:400">(optional)</span></label>
-        <input type="text" id="corsProxy" placeholder="https://corsproxy.io/?">
+        <input type="text" id="corsProxy" value="https://corsproxy.io/?" placeholder="https://corsproxy.io/?">
         <div style="margin-top:5px;font-size:0.7rem;color:var(--text-muted);line-height:1.5">
           Use if the server can't be restarted with <code style="background:var(--surface3);padding:1px 4px;border-radius:3px">--enable-cors-header</code>.<br>
           Recommended: <code style="background:var(--surface3);padding:1px 4px;border-radius:3px;cursor:pointer" onclick="setProxy('https://corsproxy.io/?')">https://corsproxy.io/?</code>
@@ -604,25 +604,25 @@ select option { background: var(--surface3); }
         <label>Loader Type</label>
         <select id="loaderType" onchange="onLoaderTypeChange()">
           <option value="checkpoint">Checkpoint (merged .safetensors)</option>
-          <option value="gguf">GGUF UNet (split files)</option>
+          <option value="gguf" selected>GGUF UNet (split files)</option>
         </select>
       </div>
       <div class="field">
-        <label id="modelLabel">Checkpoint / Model</label>
+        <label id="modelLabel">GGUF UNet Model</label>
         <div style="display:flex;gap:6px">
           <select id="modelName" style="flex:1">
-            <option value="flux2klein.safetensors">flux2klein.safetensors</option>
+            <option value="flux2-klein-9B-True-v2-Q6_K.gguf">flux2-klein-9B-True-v2-Q6_K.gguf</option>
           </select>
           <button class="btn btn-ghost btn-sm" id="loadModelsBtn" onclick="loadModels()" title="Fetch models from server">↻</button>
         </div>
         <div id="modelLoadStatus" style="font-size:0.7rem;color:var(--text-muted);margin-top:3px;min-height:14px"></div>
       </div>
-      <div id="vaeField" style="display:none">
+      <div id="vaeField" style="display:block">
         <div class="field">
           <label>VAE Model</label>
           <div style="display:flex;gap:6px">
             <select id="vaeName" style="flex:1">
-              <option value="ae.safetensors">ae.safetensors</option>
+              <option value="flux2-vae.safetensors">flux2-vae.safetensors</option>
             </select>
             <button class="btn btn-ghost btn-sm" onclick="loadVAEs()" title="Fetch VAE models">↻</button>
           </div>
@@ -682,11 +682,11 @@ select option { background: var(--surface3); }
         <label>Mode</label>
         <select id="clipMode" onchange="onClipModeChange()">
           <option value="bundled">Bundled with checkpoint (default)</option>
-          <option value="single">Single encoder (Qwen3 / CLIP)</option>
+          <option value="single" selected>Single encoder (Qwen3 / CLIP)</option>
           <option value="dual">Dual CLIP — Flux / SD3</option>
         </select>
       </div>
-      <div id="singleClipFields" style="display:none">
+      <div id="singleClipFields" style="display:block">
         <div class="field">
           <label>Loader Node</label>
           <select id="clipLoaderNode" onchange="onClipLoaderNodeChange()">
@@ -698,13 +698,13 @@ select option { background: var(--surface3); }
           <label>Model</label>
           <div style="display:flex;gap:6px">
             <select id="clipName" style="flex:1">
-              <option value="">— click ↻ to load —</option>
+              <option value="Qwen3-8B-Q4_K_M.gguf">Qwen3-8B-Q4_K_M.gguf</option>
             </select>
             <button class="btn btn-ghost btn-sm" onclick="loadClips()" title="Fetch CLIP models">↻</button>
           </div>
         </div>
-        <div class="field" id="clipTypeField" style="display:none">
-          <label>Encoder Type <span style="color:var(--text-dim);font-weight:400" id="clipTypeHint"></span></label>
+        <div class="field" id="clipTypeField" style="display:block">
+          <label>Encoder Type <span style="color:var(--text-dim);font-weight:400" id="clipTypeHint">(optional — depends on extension version)</span></label>
           <select id="clipType">
             <option value="">— auto-detect / not required —</option>
             <option value="stable_diffusion">stable_diffusion</option>
@@ -715,7 +715,7 @@ select option { background: var(--surface3); }
             <option value="ltxv">ltxv</option>
             <option value="pixart">pixart</option>
             <option value="cosmos">cosmos</option>
-            <option value="lumina2">lumina2</option>
+            <option value="lumina2" selected>lumina2</option>
             <option value="wan">wan (Qwen)</option>
             <option value="hidream">hidream</option>
           </select>
@@ -785,19 +785,19 @@ select option { background: var(--surface3); }
       <!-- LoRA 1 -->
       <div class="lora-row">
         <label class="lora-toggle">
-          <input type="checkbox" id="loraEn0">
+          <input type="checkbox" id="loraEn0" checked>
           <span>LoRA 1</span>
         </label>
-        <div class="lora-fields" id="loraFields0">
+        <div class="lora-fields" id="loraFields0" style="display:block">
           <div class="field" style="margin-top:8px">
             <select id="loraName0" style="width:100%">
-              <option value="">— click ↻ Load to populate —</option>
+              <option value="klein_9B_Turbo_r64.safetensors">klein_9B_Turbo_r64.safetensors</option>
             </select>
           </div>
           <div class="grid2">
             <div class="field">
               <label>Model wt</label>
-              <input type="number" id="loraMw0" value="1.0" min="-2" max="2" step="0.05">
+              <input type="number" id="loraMw0" value="0.3" min="-2" max="2" step="0.05">
             </div>
             <div class="field">
               <label>CLIP wt</label>
@@ -869,10 +869,10 @@ select option { background: var(--surface3); }
           <option value="cycle">Cycle through bank</option>
           <option value="random">Random from bank</option>
           <option value="custom">Custom (fixed)</option>
-          <option value="custom+style">Custom + random style tag</option>
+          <option value="custom+style" selected>Custom + random style tag</option>
         </select>
       </div>
-      <div class="field" id="customPromptField" style="display:none">
+      <div class="field" id="customPromptField" style="display:block">
         <label>Custom Prompt</label>
         <textarea id="customPrompt">portrait of a stocky muscular man, professional photography, dramatic lighting</textarea>
       </div>
