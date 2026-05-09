@@ -1719,16 +1719,20 @@ function setProgress(done, total, msg) {
 ═══════════════════════════════════════════════════════════ */
 function appendPlaceholders(total) {
   const grid = document.getElementById('galleryGrid');
-  // Remove the empty-state message if this is the first batch
   const empty = grid.querySelector('.empty-state');
   if (empty) empty.remove();
-  const offset = gallery.length; // keep existing images
+  const offset = gallery.length;
+  // Build the batch's placeholders in a fragment, then prepend the whole
+  // block so the newest batch always appears at the top of the grid.
+  const frag = document.createDocumentFragment();
   for (let i = 0; i < total; i++) {
     const el = document.createElement('div');
     el.className = 'g-placeholder';
     el.id = `slot-${offset + i}`;
     el.innerHTML = `<span style="color:var(--text-dim);font-size:0.72rem">#${offset + i + 1}</span>`;
-    grid.appendChild(el);
+    frag.appendChild(el);
+  }
+  grid.insertBefore(frag, grid.firstChild);
   }
   updateGalleryCount();
   return offset; // caller uses this as slot index base
