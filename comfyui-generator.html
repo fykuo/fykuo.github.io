@@ -1504,8 +1504,8 @@ async function startGeneration() {
   const url = serverUrl();
   let done = 0;
 
-  // Seed the grid with placeholders
-  clearGridForRun(total);
+  // Append placeholders after any existing images (don't clear previous batch)
+  const slotOffset = appendPlaceholders(total);
 
   setProgress(0, total, 'Starting…');
 
@@ -1514,16 +1514,17 @@ async function startGeneration() {
 
     const prompt = getPrompt(i);
     const seed   = randSeed();
+    const slot   = slotOffset + i;
 
     setProgress(i, total, `Image ${i + 1} / ${total} — queuing…`);
-    setPlaceholderLoading(i);
+    setPlaceholderLoading(slot);
 
     try {
       const src = await generateOne(url, prompt, seed, i);
-      replacePlaceholder(i, src, prompt);
+      replacePlaceholder(slot, src, prompt);
       done++;
     } catch (err) {
-      setPlaceholderError(i, err.message);
+      setPlaceholderError(slot, err.message);
       console.error(`[${i+1}] ${err.message}`);
     }
 
@@ -1649,18 +1650,21 @@ function setProgress(done, total, msg) {
 /* ═══════════════════════════════════════════════════════════
    GALLERY
 ═══════════════════════════════════════════════════════════ */
-function clearGridForRun(total) {
-  gallery = [];
+function appendPlaceholders(total) {
   const grid = document.getElementById('galleryGrid');
-  grid.innerHTML = '';
+  // Remove the empty-state message if this is the first batch
+  const empty = grid.querySelector('.empty-state');
+  if (empty) empty.remove();
+  const offset = gallery.length; // keep existing images
   for (let i = 0; i < total; i++) {
     const el = document.createElement('div');
     el.className = 'g-placeholder';
-    el.id = `slot-${i}`;
-    el.innerHTML = `<span style="color:var(--text-dim);font-size:0.72rem">#${i + 1}</span>`;
+    el.id = `slot-${offset + i}`;
+    el.innerHTML = `<span style="color:var(--text-dim);font-size:0.72rem">#${offset + i + 1}</span>`;
     grid.appendChild(el);
   }
   updateGalleryCount();
+  return offset; // caller uses this as slot index base
 }
 
 function setPlaceholderLoading(i) {
