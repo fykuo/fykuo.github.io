@@ -1106,6 +1106,63 @@ document.querySelector('.sidebar').addEventListener('input', saveSettings);
 // Restore settings from last session
 loadSettings();
 
+// ── Back-navigation guard ──────────────────────────────────
+// Push a sentinel history entry so the browser back button first
+// triggers our popstate handler instead of immediately leaving.
+history.pushState({ backGuard: true }, '');
+
+window.addEventListener('popstate', function() {
+  // Nothing generated yet — let navigation proceed normally
+  if (gallery.length === 0 && !isGenerating) return;
+
+  // Re-push sentinel to keep the user on the page while modal is visible
+  history.pushState({ backGuard: true }, '');
+
+  // Don't stack multiple modals
+  if (document.querySelector('.back-guard-overlay')) return;
+
+  const n = gallery.length;
+  const detail = isGenerating && n > 0
+    ? `${n} image${n !== 1 ? 's' : ''} generated so far and a job is still running.`
+    : isGenerating ? 'A generation job is still running.'
+    : `${n} generated image${n !== 1 ? 's' : ''} will be lost.`;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'back-guard-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:300px;width:100%;text-align:center';
+  box.innerHTML = `
+    <div style="font-size:2rem;margin-bottom:10px">⚠️</div>
+    <p style="color:var(--text);font-size:0.88rem;line-height:1.6;margin-bottom:20px">
+      <strong>Leave page?</strong><br>
+      <span style="color:var(--text-muted)">${escHtml(detail)}</span>
+    </p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1">↩ Stay</button>
+      <button class="btn btn-danger" style="flex:1">Leave</button>
+    </div>`;
+
+  box.querySelector('.btn-ghost').addEventListener('click', () => overlay.remove());
+  box.querySelector('.btn-danger').addEventListener('click', () => {
+    overlay.remove();
+    // Navigate away directly — avoids history-stack confusion on mobile
+    location.href = document.referrer || '/';
+  });
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+});
+
+// Desktop: also intercept page refresh / tab close when there are images
+window.addEventListener('beforeunload', e => {
+  if (gallery.length > 0 || isGenerating) {
+    e.preventDefault();
+    return (e.returnValue = '');
+  }
+});
+
 /* ═══════════════════════════════════════════════════════════
    SERVER
 ═══════════════════════════════════════════════════════════ */
