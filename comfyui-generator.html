@@ -632,7 +632,7 @@ select option { background: var(--surface3); }
       <div class="grid2">
         <div class="field">
           <label>Steps</label>
-          <input type="number" id="steps" value="20" min="1" max="150">
+          <input type="number" id="steps" value="4" min="1" max="150">
         </div>
         <div class="field">
           <label>CFG Scale</label>
@@ -640,7 +640,7 @@ select option { background: var(--surface3); }
         </div>
         <div class="field">
           <label>Width</label>
-          <input type="number" id="imgWidth" value="768" min="64" max="2048" step="64">
+          <input type="number" id="imgWidth" value="1024" min="64" max="2048" step="64">
         </div>
         <div class="field">
           <label>Height</label>
@@ -772,6 +772,13 @@ select option { background: var(--surface3); }
       <button class="btn btn-ghost btn-sm" onclick="loadLoras()" style="padding:2px 8px;font-size:0.68rem" title="Fetch LoRA list from server">↻ Load</button>
     </div>
     <div class="panel-body">
+      <div class="field" style="margin-bottom:10px">
+        <label>Apply to</label>
+        <select id="loraTarget">
+          <option value="model">Model only — LoraLoaderModelOnly (GGUF / Qwen3)</option>
+          <option value="model+clip">Model + CLIP — LoraLoader</option>
+        </select>
+      </div>
       <div id="loraLoadStatus" style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;min-height:14px"></div>
 
       <!-- LoRA 1 -->
@@ -1072,6 +1079,7 @@ document.querySelectorAll('.count-pill').forEach(p => {
     document.querySelectorAll('.count-pill').forEach(x => x.classList.remove('active'));
     p.classList.add('active');
     selectedCount = parseInt(p.dataset.count);
+    saveSettings();
   });
 });
 
@@ -1085,6 +1093,13 @@ for (let i = 0; i < 3; i++) {
     document.getElementById(`loraFields${i}`).style.display = this.checked ? 'block' : 'none';
   });
 }
+
+// Auto-save all sidebar fields on change/input
+document.querySelector('.sidebar').addEventListener('change', saveSettings);
+document.querySelector('.sidebar').addEventListener('input', saveSettings);
+
+// Restore settings from last session
+loadSettings();
 
 /* ═══════════════════════════════════════════════════════════
    SERVER
@@ -1118,11 +1133,15 @@ function setProxy(val) {
 /* ═══════════════════════════════════════════════════════════
    MODEL / LORA / CLIP LOADERS
 ═══════════════════════════════════════════════════════════ */
-function onLoaderTypeChange() {
-  const t = document.getElementById('loaderType').value;
+function _applyLoaderTypeUI(t) {
   document.getElementById('vaeField').style.display = t === 'gguf' ? 'block' : 'none';
   document.getElementById('modelLabel').textContent =
     t === 'gguf' ? 'GGUF UNet Model' : 'Checkpoint / Model';
+}
+
+function onLoaderTypeChange() {
+  const t = document.getElementById('loaderType').value;
+  _applyLoaderTypeUI(t);
   // Clear model list so stale entries from the other type don't appear
   document.getElementById('modelName').innerHTML =
     `<option value="">— click ↻ to load —</option>`;
@@ -1400,20 +1419,27 @@ function builtinWorkflow(prompt, seed) {
 
   // ── LoRA chain (nodes 30–32) ──────────────────────────────
   let modelRef = ["1", 0];
+  const loraTarget = document.getElementById('loraTarget').value;
   let loraNodeId = 30;
   for (let i = 0; i < 3; i++) {
     if (!document.getElementById(`loraEn${i}`).checked) continue;
     const name = document.getElementById(`loraName${i}`).value;
     if (!name) continue;
     const mw = parseFloat(document.getElementById(`loraMw${i}`).value) || 1.0;
-    const cw = parseFloat(document.getElementById(`loraCw${i}`).value) || 1.0;
     const id = String(loraNodeId++);
-    nodes[id] = {
-      "class_type": "LoraLoader",
-      "inputs": { "model": modelRef, "clip": clipRef, "lora_name": name, "strength_model": mw, "strength_clip": cw }
-    };
-    modelRef = [id, 0];
-    clipRef  = [id, 1];
+    if (loraTarget === 'model') {
+      // LoraLoaderModelOnly — skips CLIP patching, safe for GGUF + Qwen3
+      nodes[id] = { "class_type": "LoraLoaderModelOnly",
+        "inputs": { "model": modelRef, "lora_name": name, "strength_model": mw } };
+      modelRef = [id, 0];
+      // clipRef unchanged
+    } else {
+      const cw = parseFloat(document.getElementById(`loraCw${i}`).value) || 1.0;
+      nodes[id] = { "class_type": "LoraLoader",
+        "inputs": { "model": modelRef, "clip": clipRef, "lora_name": name, "strength_model": mw, "strength_clip": cw } };
+      modelRef = [id, 0];
+      clipRef  = [id, 1];
+    }
   }
 
   // ── Latent image — use EmptySD3LatentImage for Flux/GGUF ──
@@ -1514,12 +1540,22 @@ async function generateOne(url, prompt, seed, slotIndex) {
   const clientId = uuid();
   const workflow = buildWorkflow(prompt, seed);
 
+  console.log('[flux2klein] Queuing workflow:', JSON.stringify(workflow, null, 2));
+
   const r = await fetch(proxied(`${url}/prompt`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: workflow, client_id: clientId })
   });
-  if (!r.ok) throw new Error(`Queue failed: HTTP ${r.status}`);
+  if (!r.ok) {
+    let detail = '';
+    try {
+      const err = await r.json();
+      detail = err?.error?.message || err?.error || JSON.stringify(err);
+    } catch { try { detail = await r.text(); } catch {} }
+    console.error('[flux2klein] 400 detail:', detail);
+    throw new Error(`Queue failed: HTTP ${r.status} — ${detail.slice(0, 300)}`);
+  }
   const { prompt_id } = await r.json();
 
   setProgress(null, null, `Image ${slotIndex + 1} — generating (id: ${prompt_id.slice(0,8)}…)`);
@@ -1752,6 +1788,109 @@ function toggleCollapsible(header) {
   const chevron = header.querySelector('.chevron');
   const open = body.classList.toggle('open');
   chevron.classList.toggle('open', open);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SETTINGS PERSISTENCE
+═══════════════════════════════════════════════════════════ */
+const SETTINGS_KEY = 'flux2klein_v1';
+
+function saveSettings() {
+  const s = {};
+  const ids = [
+    'serverUrl','corsProxy','loaderType','steps','cfg','imgWidth','imgHeight',
+    'sampler','scheduler','clipMode','clipLoaderNode','clipType','clipName',
+    'dualClip1','dualClip2','dualClipType','loraTarget',
+    'loraMw0','loraCw0','loraMw1','loraCw1','loraMw2','loraCw2',
+    'promptMode','customPrompt','slideIntervalSelect',
+    'modelName','vaeName','loraName0','loraName1','loraName2',
+  ];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) s[id] = el.value; });
+  for (let i = 0; i < 3; i++) {
+    const el = document.getElementById(`loraEn${i}`);
+    if (el) s[`loraEn${i}`] = el.checked;
+  }
+  s.selectedCount = selectedCount;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
+}
+
+function _ensureSelectOption(selId, value) {
+  if (!value) return;
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  if (!Array.from(sel.options).some(o => o.value === value)) {
+    const o = document.createElement('option');
+    o.value = o.textContent = value;
+    sel.appendChild(o);
+  }
+  sel.value = value;
+}
+
+function loadSettings() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); } catch { s = null; }
+  if (!s) return;
+
+  // Simple text/number inputs
+  ['serverUrl','corsProxy','steps','cfg','imgWidth','imgHeight',
+   'sampler','scheduler','clipType','dualClipType','loraTarget',
+   'loraMw0','loraCw0','loraMw1','loraCw1','loraMw2','loraCw2',
+   'customPrompt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && s[id] !== undefined) el.value = s[id];
+  });
+
+  // Selects with values that may not yet be in the option list (fetched from server later)
+  _ensureSelectOption('modelName', s.modelName);
+  _ensureSelectOption('vaeName', s.vaeName);
+  _ensureSelectOption('clipName', s.clipName);
+  _ensureSelectOption('dualClip1', s.dualClip1);
+  _ensureSelectOption('dualClip2', s.dualClip2);
+  for (let i = 0; i < 3; i++) _ensureSelectOption(`loraName${i}`, s[`loraName${i}`]);
+
+  // Loader type — use _applyLoaderTypeUI so model list isn't cleared
+  if (s.loaderType) {
+    document.getElementById('loaderType').value = s.loaderType;
+    _applyLoaderTypeUI(s.loaderType);
+  }
+
+  // CLIP mode and sub-controls
+  if (s.clipMode) {
+    document.getElementById('clipMode').value = s.clipMode;
+    onClipModeChange();
+  }
+  if (s.clipLoaderNode) {
+    document.getElementById('clipLoaderNode').value = s.clipLoaderNode;
+    onClipLoaderNodeChange();
+  }
+
+  // Prompt mode
+  if (s.promptMode) {
+    document.getElementById('promptMode').value = s.promptMode;
+    onPromptModeChange();
+  }
+
+  // Slideshow interval
+  if (s.slideIntervalSelect) document.getElementById('slideIntervalSelect').value = s.slideIntervalSelect;
+
+  // LoRA checkboxes
+  for (let i = 0; i < 3; i++) {
+    if (s[`loraEn${i}`] !== undefined) {
+      const el = document.getElementById(`loraEn${i}`);
+      if (el) {
+        el.checked = s[`loraEn${i}`];
+        document.getElementById(`loraFields${i}`).style.display = el.checked ? 'block' : 'none';
+      }
+    }
+  }
+
+  // Image count pills
+  if (s.selectedCount) {
+    selectedCount = s.selectedCount;
+    document.querySelectorAll('.count-pill').forEach(p => {
+      p.classList.toggle('active', parseInt(p.dataset.count) === selectedCount);
+    });
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
