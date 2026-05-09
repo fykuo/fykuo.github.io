@@ -874,7 +874,10 @@ select option { background: var(--surface3); }
       </div>
       <div class="field" id="customPromptField" style="display:block">
         <label>Custom Prompt</label>
-        <textarea id="customPrompt">portrait of a stocky muscular man, professional photography, dramatic lighting</textarea>
+        <textarea id="customPrompt">portrait of a stocky muscular man in a {suit|leather jacket|military uniform|traditional kimono}, {city rooftop|mountain summit|boxing gym|dimly lit library} background, {eye-level|low angle|dutch angle} shot, dramatic lighting</textarea>
+        <div style="margin-top:4px;font-size:0.68rem;color:var(--text-dim);line-height:1.5">
+          Use <code style="background:var(--surface3);padding:1px 4px;border-radius:3px">{A|B|C}</code> for random substitution per image. Multiple groups are resolved independently.
+        </div>
       </div>
       <div class="btn-row">
         <button class="btn btn-ghost btn-sm" onclick="previewPrompt()">Preview</button>
@@ -1311,7 +1314,16 @@ function getPrompt(i) {
       base += ', ' + STYLE_TAGS[Math.floor(Math.random() * STYLE_TAGS.length)];
     }
   }
-  return base;
+  return expandWildcards(base);
+}
+
+// Replace every {A|B|C} group with a random choice from A, B, C.
+// Multiple groups are resolved independently per call.
+function expandWildcards(text) {
+  return text.replace(/\{([^}]+)\}/g, (_, inner) => {
+    const opts = inner.split('|');
+    return opts[Math.floor(Math.random() * opts.length)].trim();
+  });
 }
 
 function previewPrompt() {
