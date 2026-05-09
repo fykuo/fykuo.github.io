@@ -1585,8 +1585,15 @@ async function generateOne(url, prompt, seed, slotIndex) {
   setProgress(null, null, `Image ${slotIndex + 1} — generating (id: ${prompt_id.slice(0,8)}…)`);
 
   const filename = await pollHistory(url, prompt_id, slotIndex);
+  setProgress(null, null, `Image ${slotIndex + 1} — downloading…`);
   const viewUrl = `${url}/view?filename=${encodeURIComponent(filename)}&subfolder=&type=output`;
-  return proxied(viewUrl);
+  // Fetch the image bytes through the proxy (same path as API calls) and convert
+  // to a blob URL. This avoids handing a proxy URL directly to <img>, which breaks
+  // when the proxy mangles binary responses or returns the wrong Content-Type.
+  const imgResp = await fetch(proxied(viewUrl));
+  if (!imgResp.ok) throw new Error(`Image download failed: HTTP ${imgResp.status}`);
+  const blob = await imgResp.blob();
+  return URL.createObjectURL(blob);
 }
 
 async function pollHistory(url, promptId, slotIndex, timeout = 300_000) {
