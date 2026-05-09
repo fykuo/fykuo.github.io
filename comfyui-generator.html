@@ -1072,6 +1072,7 @@ let bankCursor = 0;
 
 let ssIndex = 0;
 let ssPlaying = true;
+let wakeLock = null;
 let ssInterval = 3000;
 let ssTimer = null;
 
@@ -1132,6 +1133,36 @@ function proxied(url) {
 }
 function setProxy(val) {
   document.getElementById('corsProxy').value = val;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WAKE LOCK + VISIBILITY
+═══════════════════════════════════════════════════════════ */
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch (e) {
+    console.log('Wake lock not granted:', e.message);
+  }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+// Re-acquire if the browser releases it when tab is re-focused
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && isGenerating && !wakeLock) acquireWakeLock();
+});
+
+// Resolves immediately if visible; otherwise waits until the tab is foregrounded again.
+// Used to pause the poll loop while the phone screen is off / app is backgrounded.
+function waitForVisible() {
+  if (document.visibilityState === 'visible') return Promise.resolve();
+  return new Promise(resolve => {
+    const h = () => { if (document.visibilityState === 'visible') { document.removeEventListener('visibilitychange', h); resolve(); } };
+    document.addEventListener('visibilitychange', h);
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1512,6 +1543,14 @@ async function startGeneration() {
   document.getElementById('generateBtn').disabled = true;
   document.getElementById('stopBtn').disabled = false;
 
+  // Keep screen on while generating (Android Chrome / Samsung Internet).
+  // On iOS Safari wake lock is unsupported — warn the user to keep screen awake manually.
+  await acquireWakeLock();
+  if (!wakeLock && 'wakeLock' in navigator === false) {
+    setProgress(null, null, '⚠ Keep screen on — wake lock not supported on this browser');
+    await sleep(2500);
+  }
+
   const total = selectedCount;
   const url = serverUrl();
   let done = 0;
@@ -1545,6 +1584,7 @@ async function startGeneration() {
   }
 
   isGenerating = false;
+  releaseWakeLock();
   document.getElementById('generateBtn').disabled = false;
   document.getElementById('stopBtn').disabled = true;
 
@@ -1605,18 +1645,31 @@ async function generateOne(url, prompt, seed, slotIndex) {
   return `${url}/view?filename=${encodeURIComponent(filename)}&subfolder=&type=output`;
 }
 
-async function pollHistory(url, promptId, slotIndex, timeout = 300_000) {
-  const deadline = Date.now() + timeout;
+async function pollHistory(url, promptId, slotIndex, timeout = 600_000) {
+  let elapsed = 0;
+  let lastVisible = Date.now();
   let n = 0;
-  while (Date.now() < deadline) {
+
+  while (elapsed < timeout) {
     if (stopFlag) throw new Error('Stopped by user');
+
+    // Pause while screen is off / tab is backgrounded (mobile).
+    // The deadline only counts time while visible so sleep doesn't eat the timeout.
+    if (document.visibilityState !== 'visible') {
+      setProgress(null, null, `Image ${slotIndex + 1} — paused (screen off) — will resume`);
+      await waitForVisible();
+      lastVisible = Date.now(); // reset clock after returning to foreground
+    }
+
     await sleep(1500);
+    elapsed += Date.now() - lastVisible;
+    lastVisible = Date.now();
     n++;
-    // Cache-bust so proxies don't serve a stale empty response from early in the poll cycle
+
     const pollUrl = proxied(`${url}/history/${promptId}?_=${Date.now()}`);
     let data;
     try {
-      const r = await fetch(pollUrl);
+      const r = await fetch(pollUrl, { signal: AbortSignal.timeout(12000) });
       if (!r.ok) {
         console.warn(`[poll #${n}] HTTP ${r.status}`);
         setProgress(null, null, `Image ${slotIndex + 1} — waiting… (poll ${n}, HTTP ${r.status})`);
@@ -1624,8 +1677,11 @@ async function pollHistory(url, promptId, slotIndex, timeout = 300_000) {
       }
       data = await r.json();
     } catch (e) {
-      console.warn(`[poll #${n}] Fetch/parse error:`, e.message);
-      setProgress(null, null, `Image ${slotIndex + 1} — waiting… (poll ${n}, net error)`);
+      // Fetch aborted by browser sleep/background — wait for foreground and retry
+      console.warn(`[poll #${n}] Fetch error (likely backgrounded):`, e.message);
+      setProgress(null, null, `Image ${slotIndex + 1} — resuming after background…`);
+      await waitForVisible();
+      lastVisible = Date.now();
       continue;
     }
 
@@ -1640,7 +1696,6 @@ async function pollHistory(url, promptId, slotIndex, timeout = 300_000) {
       for (const nodeOut of Object.values(outputs)) {
         if (nodeOut.images?.length) return nodeOut.images[0].filename;
       }
-      // Entry exists but no image yet (still executing) — keep polling
     }
   }
   throw new Error('Timed out waiting for image');
