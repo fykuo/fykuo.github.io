@@ -370,6 +370,23 @@ select option { background: var(--surface3); }
 .empty-state p { font-size: 0.9rem; }
 .empty-state small { font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; display: block; }
 
+/* ── Restore banner ── */
+.restore-banner {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 4px;
+  font-size: 0.84rem;
+  color: var(--text);
+}
+.restore-banner span { flex: 1; }
+.restore-banner button { flex-shrink: 0; }
+
 /* ── Slideshow ── */
 .slideshow {
   position: fixed;
@@ -1064,6 +1081,8 @@ const STYLE_TAGS = [
 /* ═══════════════════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════════════════ */
+const GALLERY_KEY   = 'flux2klein_gallery_v1';
+
 let gallery = [];          // { src, prompt }
 let isGenerating = false;
 let stopFlag = false;
@@ -1105,6 +1124,14 @@ document.querySelector('.sidebar').addEventListener('input', saveSettings);
 
 // Restore settings from last session
 loadSettings();
+
+// Show restore banner if previous gallery images were saved
+(function() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(GALLERY_KEY) || 'null');
+    if (saved && saved.length) showRestoreBanner(saved.length);
+  } catch {}
+})();
 
 // ── Back-navigation guard ──────────────────────────────────
 // Push a sentinel history entry so the browser back button first
@@ -1800,6 +1827,7 @@ function fillSlot(slotId, src, prompt) {
   el.addEventListener('click', () => openSlideshow(idx));
   updateGalleryCount();
   updateSsDotsIfOpen();
+  saveGalleryState();
 }
 
 function removeSlot(slotId) {
@@ -1814,6 +1842,7 @@ function removeSlot(slotId) {
 function clearGallery() {
   if (!confirm('Clear all generated images?')) return;
   gallery = [];
+  try { localStorage.removeItem(GALLERY_KEY); } catch {}
   const grid = document.getElementById('galleryGrid');
   grid.innerHTML = `<div class="empty-state">
     <div class="icon">🖼️</div>
@@ -1954,7 +1983,60 @@ function toggleCollapsible(header) {
 /* ═══════════════════════════════════════════════════════════
    SETTINGS PERSISTENCE
 ═══════════════════════════════════════════════════════════ */
-const SETTINGS_KEY = 'flux2klein_v1';
+const SETTINGS_KEY  = 'flux2klein_v1';
+
+/* ── Gallery persistence ── */
+function saveGalleryState() {
+  try {
+    const data = gallery.map(item => {
+      // Store only the filename so URLs can be rebuilt with whatever server is configured
+      let filename = item.src;
+      try { filename = new URL(item.src).searchParams.get('filename') || item.src; } catch {}
+      return { filename, prompt: item.prompt };
+    });
+    localStorage.setItem(GALLERY_KEY, JSON.stringify(data));
+  } catch {}
+}
+
+function restoreGallery() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(GALLERY_KEY) || 'null'); } catch { saved = null; }
+  if (!saved || !saved.length) return;
+
+  const url = serverUrl();
+  const grid = document.getElementById('galleryGrid');
+  const empty = grid.querySelector('.empty-state, .restore-banner');
+  if (empty) empty.remove();
+
+  saved.forEach(item => {
+    const src = `${url}/view?filename=${encodeURIComponent(item.filename)}&subfolder=&type=output`;
+    const idx = gallery.length;
+    gallery.push({ src, prompt: item.prompt });
+    const el = document.createElement('div');
+    el.id = `gitem-${idx}`;
+    el.className = 'g-item';
+    el.innerHTML = `<img src="${escHtml(src)}" alt="Generated ${idx + 1}" loading="lazy">
+      <span class="g-num">#${idx + 1}</span>
+      <div class="g-hover"><div class="g-hover-text">${escHtml(item.prompt)}</div></div>`;
+    el.addEventListener('click', () => openSlideshow(idx));
+    grid.appendChild(el);
+  });
+
+  updateGalleryCount();
+  if (gallery.length > 0) enableSlideshow();
+}
+
+function showRestoreBanner(count) {
+  const grid = document.getElementById('galleryGrid');
+  const banner = document.createElement('div');
+  banner.className = 'restore-banner';
+  banner.id = 'restoreBanner';
+  banner.innerHTML = `
+    <span>${count} image${count !== 1 ? 's' : ''} from previous session</span>
+    <button class="btn btn-primary btn-sm" onclick="restoreGallery();document.getElementById('restoreBanner').remove()">Restore</button>
+    <button class="btn btn-ghost btn-sm" onclick="localStorage.removeItem('${GALLERY_KEY}');document.getElementById('restoreBanner').remove()">Dismiss</button>`;
+  grid.insertBefore(banner, grid.firstChild);
+}
 
 function saveSettings() {
   const s = {};
