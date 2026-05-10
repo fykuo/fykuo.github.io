@@ -26,8 +26,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* ── Layout ── */
@@ -59,7 +59,9 @@ body {
 .layout {
   display: grid;
   grid-template-columns: 320px 1fr;
+  grid-template-rows: 1fr;   /* explicit row so it fills the container, not its content */
   height: calc(100vh - 49px);
+  overflow: hidden;          /* clip anything that still overflows the container */
 }
 
 /* ── Sidebar ── */
@@ -73,8 +75,10 @@ body {
   gap: 12px;
   min-height: 0; /* allow grid to constrain height so overflow-y scrolls */
 }
-.sidebar::-webkit-scrollbar { width: 4px; }
-.sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-track { background: var(--surface2); }
+.sidebar::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+.sidebar::-webkit-scrollbar-thumb:hover { background: #888; }
 
 .panel {
   background: var(--surface2);
@@ -562,9 +566,10 @@ select option { background: var(--surface3); }
 
 /* Responsive */
 @media (max-width: 700px) {
-  .layout { grid-template-columns: 1fr; height: auto; }
-  .sidebar { height: auto; border-right: none; border-bottom: 1px solid var(--border); }
-  .gallery-area { min-height: 60vh; }
+  body { height: auto; overflow: visible; }
+  .layout { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; overflow: visible; }
+  .sidebar { height: auto; min-height: 0; border-right: none; border-bottom: 1px solid var(--border); overflow-y: visible; }
+  .gallery-area { min-height: 60vh; overflow-y: visible; }
 }
 </style>
 </head>
