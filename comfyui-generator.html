@@ -28,13 +28,21 @@ body {
   color: var(--text);
 }
 
-/* ── Layout ── */
+/* ── Layout ──
+   Classic fixed-sidebar pattern:
+   - header   : fixed, full width, top of screen
+   - sidebar  : fixed, left column, from below header to bottom
+   - gallery  : fixed, right area, from below header to bottom
+   JS sets --hh (header height) as a CSS var, used by all three.        */
+:root { --hh: 49px; --sw: 320px; }
+
 .app-header {
   position: fixed;
   top: 0; left: 0; right: 0;
+  height: var(--hh);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 12px 20px;
+  padding: 0 20px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -54,24 +62,22 @@ body {
   margin-left: auto;
 }
 
-/* .layout top is set by JS to match the actual rendered header height */
-.layout {
-  position: fixed;
-  top: 49px; left: 0; right: 0; bottom: 0;
-  display: grid;
-  grid-template-columns: 320px 1fr;
-}
+/* .layout is just a semantic wrapper — no layout role on desktop */
+.layout { display: contents; }
 
 /* ── Sidebar ── */
 .sidebar {
+  position: fixed;
+  top: var(--hh); left: 0; bottom: 0;
+  width: var(--sw);
   background: var(--surface);
   border-right: 1px solid var(--border);
-  overflow-y: scroll; /* always show scrollbar so it doesn't jump */
+  overflow-y: auto;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: 100%;
+  z-index: 100;
 }
 .sidebar::-webkit-scrollbar { width: 6px; }
 .sidebar::-webkit-scrollbar-track { background: var(--surface2); }
@@ -270,10 +276,11 @@ select option { background: var(--surface3); }
 
 /* ── Gallery ── */
 .gallery-area {
+  position: fixed;
+  top: var(--hh); left: var(--sw); right: 0; bottom: 0;
   overflow-y: auto;
   padding: 20px;
   background: var(--bg);
-  height: 100%;
 }
 .gallery-area::-webkit-scrollbar { width: 6px; }
 .gallery-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -562,22 +569,23 @@ select option { background: var(--surface3); }
 .prompt-bank-item:hover { border-color: var(--accent); }
 .prompt-bank-item .pbi-num { color: var(--text-muted); font-size: 0.68rem; margin-bottom: 3px; }
 
-/* Responsive — undo fixed layout on mobile so page scrolls naturally */
+/* Responsive — revert to normal flow on mobile */
 @media (max-width: 700px) {
-  .app-header { position: static; }
-  .layout {
-    position: static;
-    top: auto; left: auto; right: auto; bottom: auto;
-    display: block;
-    height: auto;
-  }
+  .app-header { position: static; height: auto; }
+  .layout { display: block; }
   .sidebar {
-    height: auto;
+    position: static;
+    width: auto; height: auto;
     overflow-y: visible;
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
-  .gallery-area { height: auto; overflow-y: visible; min-height: 60vh; }
+  .gallery-area {
+    position: static;
+    height: auto;
+    overflow-y: visible;
+    min-height: 60vh;
+  }
 }
 </style>
 </head>
@@ -1140,19 +1148,14 @@ document.querySelector('.sidebar').addEventListener('input', saveSettings);
 // Restore settings from last session
 loadSettings();
 
-// Position the fixed layout panel directly below the header.
-// Measuring here avoids hard-coding a pixel offset that breaks at different
-// zoom levels, OS font sizes, or when the header wraps onto two lines.
-(function positionLayout() {
+// Measure the actual rendered header height and expose it as --hh so the
+// fixed sidebar and gallery-area position themselves exactly below it.
+// This handles any zoom level, OS font scale, or browser UI quirk.
+(function syncHeaderHeight() {
   const header = document.querySelector('.app-header');
-  const layout = document.querySelector('.layout');
   function update() {
-    // Only apply on desktop (mobile uses static layout via media query)
-    if (window.innerWidth > 700) {
-      layout.style.top = header.getBoundingClientRect().height + 'px';
-    } else {
-      layout.style.top = '';
-    }
+    const h = header.getBoundingClientRect().height;
+    document.documentElement.style.setProperty('--hh', h + 'px');
   }
   update();
   window.addEventListener('resize', update);
