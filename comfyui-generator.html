@@ -928,12 +928,12 @@ input[type=range] {
         <div class="panel-body">
           <div class="field" style="margin-bottom:12px">
             <label>Conditioning Node Class</label>
-            <input type="text" id="refNodeClass" value="ReferenceConditioningNode" placeholder="e.g. ReferenceConditioningNode">
+            <input type="text" id="refNodeClass" value="ReferenceLatent" placeholder="e.g. ReferenceLatent">
             <div style="margin-top:4px;font-size:0.67rem;color:var(--text-dim);line-height:1.4">
-              Inputs: <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">reference_latent</code>
-              <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">positive</code>
-              <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">negative</code>
-              <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">strength</code> — outputs pos[0] neg[1]
+              Built-in node — inputs:
+              <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">conditioning</code>
+              <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">latent</code>
+              → CONDITIONING. Applied once to positive and once to negative per image.
             </div>
           </div>
           <div class="ref-slot">
@@ -1709,33 +1709,33 @@ function builtinWorkflow(prompt, seed, refUploaded = [null, null]) {
   nodes["2"] = { "class_type": "CLIPTextEncode", "inputs": { "text": prompt, "clip": clipRef } };
   nodes["3"] = { "class_type": "CLIPTextEncode", "inputs": { "text": "",     "clip": clipRef } };
 
-  // ── Reference conditioning chain (nodes 40-45) ────────────
-  // Each enabled reference image adds: LoadImage → VAEEncode → RefCondNode.
-  // The conditioning refs are threaded so the KSampler uses the final output.
+  // ── Reference conditioning (nodes 40-47) ─────────────────
+  // ReferenceLatent (built-in ComfyUI) takes: conditioning + latent → CONDITIONING.
+  // It must be applied separately to positive and negative conditioning.
+  // Node layout per ref image i:
+  //   40/41  LoadImage
+  //   42/43  VAEEncode  (encode ref image to latent)
+  //   44/46  ReferenceLatent for positive
+  //   45/47  ReferenceLatent for negative
   let positiveRef = ["2", 0];
   let negativeRef = ["3", 0];
   const refNodeClass = (document.getElementById('refNodeClass').value || '').trim()
-                       || 'ReferenceConditioningNode';
+                       || 'ReferenceLatent';
+  const refIds = [
+    { load:"40", enc:"42", pos:"44", neg:"45" },
+    { load:"41", enc:"43", pos:"46", neg:"47" },
+  ];
   for (let i = 0; i < 2; i++) {
     const filename = refUploaded[i];
     if (!filename) continue;
-    const strength = parseFloat(document.getElementById(`refStr${i}`).value) || 0.8;
-    const loadId = String(40 + i);       // "40", "41"
-    const encId  = String(42 + i);       // "42", "43"
-    const condId = String(44 + i);       // "44", "45"
-    nodes[loadId] = { "class_type": "LoadImage",  "inputs": { "image": filename } };
-    nodes[encId]  = { "class_type": "VAEEncode",  "inputs": { "pixels": [loadId, 0], "vae": vaeRef } };
-    nodes[condId] = {
-      "class_type": refNodeClass,
-      "inputs": {
-        "reference_latent": [encId, 0],
-        "positive": positiveRef,
-        "negative": negativeRef,
-        "strength": strength
-      }
-    };
-    positiveRef = [condId, 0];
-    negativeRef = [condId, 1];
+    const { load, enc, pos, neg } = refIds[i];
+    nodes[load] = { "class_type": "LoadImage", "inputs": { "image": filename } };
+    nodes[enc]  = { "class_type": "VAEEncode",  "inputs": { "pixels": [load, 0], "vae": vaeRef } };
+    // Apply to positive and negative separately; standard ReferenceLatent has no strength input.
+    nodes[pos] = { "class_type": refNodeClass, "inputs": { "conditioning": positiveRef, "latent": [enc, 0] } };
+    nodes[neg] = { "class_type": refNodeClass, "inputs": { "conditioning": negativeRef, "latent": [enc, 0] } };
+    positiveRef = [pos, 0];
+    negativeRef = [neg, 0];
   }
 
   // ── KSampler + VAEDecode + SaveImage ──────────────────────
