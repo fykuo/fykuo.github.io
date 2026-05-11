@@ -523,6 +523,35 @@ select option { background: var(--surface3); }
 .lora-toggle span { font-size: 0.82rem; color: var(--text); user-select: none; }
 .lora-fields { margin-top: 8px; display: none; }
 
+/* Reference images */
+.ref-slot {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.ref-slot:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: none; }
+.ref-upload-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.ref-upload-label:hover { border-color: var(--accent); color: var(--text); }
+.ref-preview { width: 100%; max-height: 110px; object-fit: contain;
+  border-radius: 4px; border: 1px solid var(--border); background: var(--surface3);
+  display: block; margin-top: 6px; }
+input[type=range] {
+  width: 100%; accent-color: var(--accent); cursor: pointer; margin-top: 4px;
+}
+
 /* Modal */
 .modal-backdrop {
   position: fixed;
@@ -893,6 +922,67 @@ select option { background: var(--surface3); }
               <label>CLIP wt</label>
               <input type="number" id="loraCw2" value="1.0" min="-2" max="2" step="0.05">
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reference Images -->
+  <div class="panel">
+    <div class="panel-header">Reference Images</div>
+    <div class="panel-body">
+      <div class="field" style="margin-bottom:12px">
+        <label>Conditioning Node Class</label>
+        <input type="text" id="refNodeClass" value="ReferenceConditioningNode"
+               placeholder="e.g. ReferenceConditioningNode">
+        <div style="margin-top:4px;font-size:0.67rem;color:var(--text-dim);line-height:1.4">
+          Expected inputs: <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">reference_latent</code>
+          <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">positive</code>
+          <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">negative</code>
+          <code style="background:var(--surface3);padding:1px 3px;border-radius:2px">strength</code><br>
+          Outputs: modified positive [0], negative [1]
+        </div>
+      </div>
+
+      <!-- Ref 1 -->
+      <div class="ref-slot">
+        <label class="lora-toggle">
+          <input type="checkbox" id="refEn0" onchange="document.getElementById('refFields0').style.display=this.checked?'block':'none'">
+          <span>Reference Image 1</span>
+        </label>
+        <div id="refFields0" style="display:none">
+          <input type="file" id="refFile0" accept="image/*" style="display:none"
+                 onchange="onRefFileChange(0,this)">
+          <label class="ref-upload-label" for="refFile0" id="refLabel0">📁 Click to select image</label>
+          <img class="ref-preview" id="refPreview0" src="" alt="" style="display:none">
+          <button class="btn btn-ghost btn-sm" onclick="clearRefImage(0)"
+                  id="refClear0" style="display:none;margin-top:4px;width:100%">✕ Remove image</button>
+          <div class="field" style="margin-top:10px">
+            <label>Strength: <span id="refStr0Val">0.80</span></label>
+            <input type="range" id="refStr0" min="0" max="1" step="0.05" value="0.8"
+                   oninput="document.getElementById('refStr0Val').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+        </div>
+      </div>
+
+      <!-- Ref 2 -->
+      <div class="ref-slot">
+        <label class="lora-toggle">
+          <input type="checkbox" id="refEn1" onchange="document.getElementById('refFields1').style.display=this.checked?'block':'none'">
+          <span>Reference Image 2</span>
+        </label>
+        <div id="refFields1" style="display:none">
+          <input type="file" id="refFile1" accept="image/*" style="display:none"
+                 onchange="onRefFileChange(1,this)">
+          <label class="ref-upload-label" for="refFile1" id="refLabel1">📁 Click to select image</label>
+          <img class="ref-preview" id="refPreview1" src="" alt="" style="display:none">
+          <button class="btn btn-ghost btn-sm" onclick="clearRefImage(1)"
+                  id="refClear1" style="display:none;margin-top:4px;width:100%">✕ Remove image</button>
+          <div class="field" style="margin-top:10px">
+            <label>Strength: <span id="refStr1Val">0.80</span></label>
+            <input type="range" id="refStr1" min="0" max="1" step="0.05" value="0.8"
+                   oninput="document.getElementById('refStr1Val').textContent=parseFloat(this.value).toFixed(2)">
           </div>
         </div>
       </div>
@@ -1506,7 +1596,7 @@ function useBankPrompt(i) {
 /* ═══════════════════════════════════════════════════════════
    WORKFLOW BUILDER
 ═══════════════════════════════════════════════════════════ */
-function buildWorkflow(prompt, seed) {
+function buildWorkflow(prompt, seed, refUploaded = [null, null]) {
   const customJson = document.getElementById('customWorkflowJson').value.trim();
   if (customJson) {
     try {
@@ -1516,7 +1606,7 @@ function buildWorkflow(prompt, seed) {
       throw new Error('Invalid custom workflow JSON: ' + e.message);
     }
   }
-  return builtinWorkflow(prompt, seed);
+  return builtinWorkflow(prompt, seed, refUploaded);
 }
 
 function injectIntoWorkflow(wf, prompt, seed) {
@@ -1538,7 +1628,7 @@ function injectIntoWorkflow(wf, prompt, seed) {
   return wf;
 }
 
-function builtinWorkflow(prompt, seed) {
+function builtinWorkflow(prompt, seed, refUploaded = [null, null]) {
   const model   = document.getElementById('modelName').value || 'flux2klein.safetensors';
   const steps   = parseInt(document.getElementById('steps').value) || 20;
   const cfg     = parseFloat(document.getElementById('cfg').value) || 1.0;
@@ -1626,20 +1716,104 @@ function builtinWorkflow(prompt, seed) {
     "inputs": { "width": width, "height": height, "batch_size": 1 }
   };
 
-  // ── KSampler + VAEDecode + SaveImage ──────────────────────
+  // ── Text encode ───────────────────────────────────────────
   nodes["2"] = { "class_type": "CLIPTextEncode", "inputs": { "text": prompt, "clip": clipRef } };
   nodes["3"] = { "class_type": "CLIPTextEncode", "inputs": { "text": "",     "clip": clipRef } };
+
+  // ── Reference conditioning chain (nodes 40-45) ────────────
+  // Each enabled reference image adds: LoadImage → VAEEncode → RefCondNode.
+  // The conditioning refs are threaded so the KSampler uses the final output.
+  let positiveRef = ["2", 0];
+  let negativeRef = ["3", 0];
+  const refNodeClass = (document.getElementById('refNodeClass').value || '').trim()
+                       || 'ReferenceConditioningNode';
+  for (let i = 0; i < 2; i++) {
+    const filename = refUploaded[i];
+    if (!filename) continue;
+    const strength = parseFloat(document.getElementById(`refStr${i}`).value) || 0.8;
+    const loadId = String(40 + i);       // "40", "41"
+    const encId  = String(42 + i);       // "42", "43"
+    const condId = String(44 + i);       // "44", "45"
+    nodes[loadId] = { "class_type": "LoadImage",  "inputs": { "image": filename } };
+    nodes[encId]  = { "class_type": "VAEEncode",  "inputs": { "pixels": [loadId, 0], "vae": vaeRef } };
+    nodes[condId] = {
+      "class_type": refNodeClass,
+      "inputs": {
+        "reference_latent": [encId, 0],
+        "positive": positiveRef,
+        "negative": negativeRef,
+        "strength": strength
+      }
+    };
+    positiveRef = [condId, 0];
+    negativeRef = [condId, 1];
+  }
+
+  // ── KSampler + VAEDecode + SaveImage ──────────────────────
   nodes["5"] = {
     "class_type": "KSampler",
     "inputs": {
       "seed": seed, "steps": steps, "cfg": cfg,
       "sampler_name": sampler, "scheduler": sched, "denoise": 1.0,
-      "model": modelRef, "positive": ["2",0], "negative": ["3",0], "latent_image": ["4",0]
+      "model": modelRef, "positive": positiveRef, "negative": negativeRef,
+      "latent_image": ["4", 0]
     }
   };
   nodes["6"] = { "class_type": "VAEDecode", "inputs": { "samples": ["5",0], "vae": vaeRef } };
   nodes["7"] = { "class_type": "SaveImage", "inputs": { "filename_prefix": "flux2klein", "images": ["6",0] } };
   return nodes;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   REFERENCE IMAGES
+═══════════════════════════════════════════════════════════ */
+const refFiles = [null, null]; // selected File objects (per slot)
+
+function onRefFileChange(idx, input) {
+  const file = input.files[0];
+  if (!file) return;
+  refFiles[idx] = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById(`refPreview${idx}`);
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    document.getElementById(`refClear${idx}`).style.display = 'block';
+    document.getElementById(`refLabel${idx}`).textContent = '📷 ' + file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearRefImage(idx) {
+  refFiles[idx] = null;
+  document.getElementById(`refFile${idx}`).value = '';
+  const preview = document.getElementById(`refPreview${idx}`);
+  preview.src = '';
+  preview.style.display = 'none';
+  document.getElementById(`refClear${idx}`).style.display = 'none';
+  document.getElementById(`refLabel${idx}`).textContent = '📁 Click to select image';
+}
+
+async function uploadRefImages(url) {
+  const uploaded = [null, null];
+  for (let i = 0; i < 2; i++) {
+    if (!document.getElementById(`refEn${i}`).checked) continue;
+    const file = refFiles[i];
+    if (!file) { console.warn(`Ref ${i + 1} enabled but no file selected — skipping`); continue; }
+    setProgress(null, null, `Uploading reference image ${i + 1}…`);
+    const fd = new FormData();
+    fd.append('image', file);
+    fd.append('overwrite', 'true');
+    const r = await fetch(proxied(`${url}/upload/image`), {
+      method: 'POST', body: fd, signal: AbortSignal.timeout(30000)
+    });
+    if (!r.ok) throw new Error(`Reference image ${i + 1} upload failed (HTTP ${r.status})`);
+    const data = await r.json();
+    // ComfyUI returns { name, subfolder, type }; LoadImage uses subfolder/name if subfolder non-empty
+    uploaded[i] = data.subfolder ? `${data.subfolder}/${data.name}` : data.name;
+    console.log(`[ref ${i + 1}] uploaded → ${uploaded[i]}`);
+  }
+  return uploaded;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1681,6 +1855,19 @@ async function startGeneration() {
 
   setProgress(0, total, 'Starting…');
 
+  // Upload reference images once before the loop (they're the same for every image in the batch)
+  let refUploaded = [null, null];
+  try {
+    refUploaded = await uploadRefImages(url);
+  } catch (err) {
+    isGenerating = false;
+    releaseWakeLock();
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+    setProgress(0, total, `Reference upload failed: ${err.message}`);
+    return;
+  }
+
   for (let i = 0; i < total; i++) {
     if (stopFlag) break;
 
@@ -1689,12 +1876,10 @@ async function startGeneration() {
     const slotId = `slot-${batchId}-${i}`;
 
     setProgress(i, total, `Image ${i + 1} / ${total} — queuing…`);
-    // Prepend a single loading slot at the very top so the newest image
-    // always lands at position 0 when it finishes.
     prependLoadingSlot(slotId);
 
     try {
-      const src = await generateOne(url, prompt, seed, i);
+      const src = await generateOne(url, prompt, seed, i, refUploaded);
       fillSlot(slotId, src, prompt);
       done++;
     } catch (err) {
@@ -1726,9 +1911,9 @@ function requestStop() {
   document.getElementById('statusMsg').textContent = 'Stopping after current image…';
 }
 
-async function generateOne(url, prompt, seed, slotIndex) {
+async function generateOne(url, prompt, seed, slotIndex, refUploaded = [null, null]) {
   const clientId = uuid();
-  const workflow = buildWorkflow(prompt, seed);
+  const workflow = buildWorkflow(prompt, seed, refUploaded);
 
   console.log('[flux2klein] Queuing workflow:', JSON.stringify(workflow, null, 2));
 
@@ -2081,7 +2266,7 @@ function saveSettings() {
     'sampler','scheduler','clipMode','clipLoaderNode','clipType','clipName',
     'dualClip1','dualClip2','dualClipType','loraTarget',
     'loraMw0','loraCw0','loraMw1','loraCw1','loraMw2','loraCw2',
-    'promptMode','customPrompt','slideIntervalSelect',
+    'promptMode','customPrompt','slideIntervalSelect','refNodeClass',
     'modelName','vaeName','loraName0','loraName1','loraName2',
   ];
   ids.forEach(id => { const el = document.getElementById(id); if (el) s[id] = el.value; });
